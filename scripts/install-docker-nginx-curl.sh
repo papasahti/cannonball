@@ -318,14 +318,6 @@ services:
   postgres-backup:
     volumes:
       - ${POSTGRES_BACKUP_DIR}:/backups
-  nginx:
-    environment:
-      NGINX_SERVER_NAME: ${PUBLIC_HOST}
-    ports:
-      - "${HTTP_PORT}:80"
-      - "${HTTPS_PORT}:443"
-    volumes:
-      - ${NGINX_DIR}/certs:/etc/nginx/certs:ro
 EOF
 }
 
