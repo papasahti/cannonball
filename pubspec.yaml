@@ -11,6 +11,7 @@ dependencies:
   http: ^1.6.0
   mailer: ^6.5.0
   path: ^1.9.1
+  postgres: ^3.5.9
   shelf: ^1.4.2
   shelf_router: ^1.1.4
   shelf_static: ^1.1.3

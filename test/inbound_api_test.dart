@@ -224,6 +224,7 @@ class _TestHarness {
       bootstrapAdminDisplayName: 'Admin',
       bootstrapAdminPassword: 'testpass123',
       bootstrapAdminPasswordHash: null,
+      forceBootstrapAdminPasswordSync: false,
       sessionTtl: const Duration(hours: 12),
       secureCookies: false,
       defaultAppTitle: 'cannonball',

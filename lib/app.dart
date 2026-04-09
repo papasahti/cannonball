@@ -41,6 +41,7 @@ Future<Application> buildApplication() async {
     displayName: config.bootstrapAdminDisplayName,
     email: config.bootstrapAdminEmail,
     passwordHash: bootstrapPasswordHash,
+    forcePasswordSync: config.forceBootstrapAdminPasswordSync,
   );
 
   final authService = AuthService(

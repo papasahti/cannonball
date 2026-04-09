@@ -170,6 +170,7 @@ APP_USERNAME=${ADMIN_LOGIN}
 APP_ADMIN_DISPLAY_NAME=${ADMIN_NAME}
 APP_ADMIN_EMAIL=${ADMIN_EMAIL}
 APP_PASSWORD=adminadmin
+APP_FORCE_BOOTSTRAP_PASSWORD_SYNC=true
 ALLOW_INSECURE_COOKIE=true
 SESSION_TTL_HOURS=12
 APP_TITLE=cannonball
@@ -291,6 +292,7 @@ prepare_runtime_files() {
   set_env_value "${INSTALL_DIR}/.env" "APP_ADMIN_DISPLAY_NAME" "${ADMIN_NAME}"
   set_env_value "${INSTALL_DIR}/.env" "APP_ADMIN_EMAIL" "${ADMIN_EMAIL}"
   set_env_value "${INSTALL_DIR}/.env" "APP_PASSWORD" "${APP_PASSWORD}"
+  set_env_value "${INSTALL_DIR}/.env" "APP_FORCE_BOOTSTRAP_PASSWORD_SYNC" "true"
   set_env_value "${INSTALL_DIR}/.env" "APP_BASE_URL" "${PUBLIC_URL}"
 
   prepare_nginx_files

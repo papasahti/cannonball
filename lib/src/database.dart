@@ -40,6 +40,7 @@ class AppDatabase {
     required String displayName,
     required String? email,
     required String passwordHash,
+    bool forcePasswordSync = false,
   }) {
     final existing = getUserByUsername(username);
     if (existing != null) {
@@ -47,6 +48,7 @@ class AppDatabase {
         id: existing['id'] as int,
         displayName: displayName,
         email: email,
+        passwordHash: forcePasswordSync ? passwordHash : null,
       );
       return;
     }
@@ -231,8 +233,32 @@ class AppDatabase {
     required int id,
     required String displayName,
     required String? email,
+    String? passwordHash,
   }) {
     final normalizedEmail = email?.trim();
+    final now = DateTime.now().toUtc().toIso8601String();
+    final effectiveEmail = normalizedEmail != null && normalizedEmail.isNotEmpty
+        ? normalizedEmail
+        : null;
+
+    if (passwordHash != null && passwordHash.isNotEmpty) {
+      db.execute(
+        '''
+        UPDATE users
+        SET display_name = ?,
+            email = COALESCE(?, email),
+            password_hash = ?,
+            role = 'admin',
+            is_active = 1,
+            auth_provider = 'local',
+            updated_at = ?
+        WHERE id = ?
+        ''',
+        [displayName, effectiveEmail, passwordHash, now, id],
+      );
+      return;
+    }
+
     db.execute(
       '''
       UPDATE users
@@ -244,14 +270,7 @@ class AppDatabase {
           updated_at = ?
       WHERE id = ?
       ''',
-      [
-        displayName,
-        normalizedEmail != null && normalizedEmail.isNotEmpty
-            ? normalizedEmail
-            : null,
-        DateTime.now().toUtc().toIso8601String(),
-        id,
-      ],
+      [displayName, effectiveEmail, now, id],
     );
   }
 

@@ -64,6 +64,19 @@ remove_named_containers() {
   fi
 }
 
+remove_named_volumes() {
+  local volume_ids=""
+
+  volume_ids="$(docker volume ls -q | grep -E '(^|_)cannonball_data$|(^|_)cannonball($|_)' || true)"
+  if [[ -n "${volume_ids}" ]]; then
+    log "Удаляю docker volumes cannonball"
+    printf '%s\n' "${volume_ids}" | while IFS= read -r volume_id; do
+      [[ -n "${volume_id}" ]] || continue
+      docker volume rm -f "${volume_id}" >/dev/null 2>&1 || true
+    done
+  fi
+}
+
 remove_image() {
   if [[ "${REMOVE_IMAGE}" = "true" ]]; then
     log "Удаляю image ${IMAGE_NAME}"
@@ -111,6 +124,7 @@ main() {
   detect_compose
   remove_compose_stack
   remove_named_containers
+  remove_named_volumes
   remove_image
   remove_install_dir
   remove_data_dir

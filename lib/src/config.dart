@@ -10,6 +10,7 @@ class AppConfig {
     required this.bootstrapAdminDisplayName,
     required this.bootstrapAdminPassword,
     required this.bootstrapAdminPasswordHash,
+    required this.forceBootstrapAdminPasswordSync,
     required this.sessionTtl,
     required this.secureCookies,
     required this.defaultAppTitle,
@@ -50,6 +51,7 @@ class AppConfig {
   final String bootstrapAdminDisplayName;
   final String? bootstrapAdminPassword;
   final String? bootstrapAdminPasswordHash;
+  final bool forceBootstrapAdminPasswordSync;
   final Duration sessionTtl;
   final bool secureCookies;
   final String defaultAppTitle;
@@ -110,6 +112,10 @@ class AppConfig {
         (Platform.environment['ALLOW_INSECURE_COOKIE'] ?? 'false')
             .toLowerCase() ==
         'true';
+    final forceBootstrapAdminPasswordSync =
+        (Platform.environment['APP_FORCE_BOOTSTRAP_PASSWORD_SYNC'] ?? 'false')
+            .toLowerCase() ==
+        'true';
 
     return AppConfig(
       port: port,
@@ -120,6 +126,7 @@ class AppConfig {
       bootstrapAdminDisplayName: bootstrapAdminDisplayName,
       bootstrapAdminPassword: bootstrapAdminPassword,
       bootstrapAdminPasswordHash: bootstrapAdminPasswordHash,
+      forceBootstrapAdminPasswordSync: forceBootstrapAdminPasswordSync,
       sessionTtl: Duration(hours: sessionHours),
       secureCookies: !allowInsecure,
       defaultAppTitle: _nullableEnv('APP_TITLE') ?? 'cannonball',

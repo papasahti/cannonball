@@ -108,6 +108,7 @@ AppConfig _testConfig({required String databasePath}) {
     bootstrapAdminDisplayName: 'Admin',
     bootstrapAdminPassword: 'adminadmin',
     bootstrapAdminPasswordHash: null,
+    forceBootstrapAdminPasswordSync: false,
     sessionTtl: const Duration(hours: 12),
     secureCookies: false,
     defaultAppTitle: 'cannonball',
