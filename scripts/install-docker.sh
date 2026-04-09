@@ -96,6 +96,32 @@ is_repo_root() {
   [[ -f "${candidate}/Dockerfile" && -f "${candidate}/docker-compose.yml" && -f "${candidate}/.env.example" ]]
 }
 
+find_repo_root() {
+  local base_dir="$1"
+  local found_root=""
+
+  if is_repo_root "${base_dir}"; then
+    printf '%s\n' "${base_dir}"
+    return
+  fi
+
+  found_root="$(find "${base_dir}" -type f -name 'docker-compose.yml' -print 2>/dev/null | while read -r compose_file; do
+    local candidate
+    candidate="$(dirname "${compose_file}")"
+    if is_repo_root "${candidate}"; then
+      printf '%s\n' "${candidate}"
+      break
+    fi
+  done)"
+
+  if [[ -n "${found_root}" ]]; then
+    printf '%s\n' "${found_root}"
+    return
+  fi
+
+  return 1
+}
+
 normalize_repo_url() {
   local url="$1"
 
@@ -148,9 +174,8 @@ prepare_source_dir() {
   curl -fsSL "${REPO_ARCHIVE_URL}" -o "${TMP_DIR}/cannonball.tar.gz"
   mkdir -p "${TMP_DIR}/src"
   tar -xzf "${TMP_DIR}/cannonball.tar.gz" -C "${TMP_DIR}/src"
-  SOURCE_DIR="$(find "${TMP_DIR}/src" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
-  [[ -n "${SOURCE_DIR}" ]] || fail "Не удалось распаковать архив проекта"
-  is_repo_root "${SOURCE_DIR}" || fail "В архиве не найден корректный корень репозитория"
+  SOURCE_DIR="$(find_repo_root "${TMP_DIR}/src" || true)"
+  [[ -n "${SOURCE_DIR}" ]] || fail "В архиве не найден корректный корень репозитория"
   log "Архив распакован во временный каталог"
 }
 
