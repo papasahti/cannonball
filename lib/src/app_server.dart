@@ -679,85 +679,96 @@ Handler createHandler({
   });
 
   router.post('/api/admin/users', (Request request) async {
-    final admin = await _requireAdmin(request, authService);
-    if (admin == null) {
-      return _jsonResponse(HttpStatus.forbidden, {
-        'ok': false,
-        'error': 'Нужны права администратора.',
-      });
-    }
+    try {
+      final admin = await _requireAdmin(request, authService);
+      if (admin == null) {
+        return _jsonResponse(HttpStatus.forbidden, {
+          'ok': false,
+          'error': 'Нужны права администратора.',
+        });
+      }
 
-    final payload = await _readJsonBody(request);
-    final username = (payload['username']?.toString() ?? '')
-        .trim()
-        .toLowerCase();
-    final displayName = (payload['displayName']?.toString() ?? '').trim();
-    final email = (payload['email']?.toString() ?? '').trim().toLowerCase();
-    final password = (payload['password']?.toString() ?? '').trim();
-    final role = (payload['role']?.toString() ?? 'user').trim();
-    final isActive = payload['isActive'] == true;
-    _authLog(
-      config,
-      'admin create user attempt by=${admin.username} username=$username role=$role active=$isActive emailProvided=${email.isNotEmpty} passwordProvided=${password.isNotEmpty}',
-    );
-
-    final validationError = _validateManagedUser(
-      username: username,
-      displayName: displayName,
-      role: role,
-      password: password,
-      email: email,
-      requirePassword: true,
-    );
-    if (validationError != null) {
+      final payload = await _readJsonBody(request);
+      final username = (payload['username']?.toString() ?? '')
+          .trim()
+          .toLowerCase();
+      final displayName = (payload['displayName']?.toString() ?? '').trim();
+      final email = (payload['email']?.toString() ?? '').trim().toLowerCase();
+      final password = (payload['password']?.toString() ?? '').trim();
+      final role = (payload['role']?.toString() ?? 'user').trim();
+      final isActive = payload['isActive'] == true;
       _authLog(
         config,
-        'admin create user failed username=$username reason=validation error=$validationError',
+        'admin create user attempt by=${admin.username} username=$username role=$role active=$isActive emailProvided=${email.isNotEmpty} passwordProvided=${password.isNotEmpty}',
       );
-      return _jsonResponse(HttpStatus.badRequest, {
-        'ok': false,
-        'error': validationError,
-      });
-    }
-    if (await database.getUserByUsername(username) != null) {
-      _authLog(
-        config,
-        'admin create user failed username=$username reason=duplicate',
-      );
-      return _jsonResponse(HttpStatus.conflict, {
-        'ok': false,
-        'error': 'Пользователь с таким логином уже существует.',
-      });
-    }
 
-    final id = await database.createUser(
-      username: username,
-      displayName: displayName,
-      email: email,
-      passwordHash: AuthService.hashPassword(password),
-      role: role,
-      isActive: isActive,
-    );
-    _authLog(
-      config,
-      'admin create user success username=$username id=$id role=$role active=$isActive',
-    );
-    final createdUser = await database.getUserById(id);
-    if (createdUser == null) {
+      final validationError = _validateManagedUser(
+        username: username,
+        displayName: displayName,
+        role: role,
+        password: password,
+        email: email,
+        requirePassword: true,
+      );
+      if (validationError != null) {
+        _authLog(
+          config,
+          'admin create user failed username=$username reason=validation error=$validationError',
+        );
+        return _jsonResponse(HttpStatus.badRequest, {
+          'ok': false,
+          'error': validationError,
+        });
+      }
+      if (await database.getUserByUsername(username) != null) {
+        _authLog(
+          config,
+          'admin create user failed username=$username reason=duplicate',
+        );
+        return _jsonResponse(HttpStatus.conflict, {
+          'ok': false,
+          'error': 'Пользователь с таким логином уже существует.',
+        });
+      }
+
+      final id = await database.createUser(
+        username: username,
+        displayName: displayName,
+        email: email,
+        passwordHash: AuthService.hashPassword(password),
+        role: role,
+        isActive: isActive,
+      );
       _authLog(
         config,
-        'admin create user failed username=$username reason=user-not-found-after-create id=$id',
+        'admin create user success username=$username id=$id role=$role active=$isActive',
+      );
+      final createdUser = await database.getUserById(id);
+      if (createdUser == null) {
+        _authLog(
+          config,
+          'admin create user failed username=$username reason=user-not-found-after-create id=$id',
+        );
+        return _jsonResponse(HttpStatus.internalServerError, {
+          'ok': false,
+          'error': 'Пользователь был создан, но не удалось перечитать запись из базы.',
+        });
+      }
+
+      return _jsonResponse(HttpStatus.ok, {
+        'ok': true,
+        'user': _sanitizeUserMap(createdUser),
+      });
+    } catch (error, stackTrace) {
+      _authLog(
+        config,
+        'admin create user crash error=$error stack=$stackTrace',
       );
       return _jsonResponse(HttpStatus.internalServerError, {
         'ok': false,
-        'error': 'Пользователь был создан, но не удалось перечитать запись из базы.',
+        'error': 'Не удалось создать пользователя из-за внутренней ошибки сервиса.',
       });
     }
-
-    return _jsonResponse(HttpStatus.ok, {
-      'ok': true,
-      'user': _sanitizeUserMap(createdUser),
-    });
   });
 
   router.patch('/api/admin/users/<id|[0-9]+>', (

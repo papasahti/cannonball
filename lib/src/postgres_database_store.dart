@@ -77,10 +77,10 @@ class PostgresDatabaseStore implements DatabaseStore {
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING id
       ''',
-      parameters: [
+      parameters: <Object?>[
         username,
         displayName,
-        email,
+        email != null && email.trim().isNotEmpty ? email : null,
         authProvider,
         externalSubject,
         passwordHash,
