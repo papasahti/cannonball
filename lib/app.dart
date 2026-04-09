@@ -37,13 +37,7 @@ void _authLog(AppConfig config, String message) {
 }
 
 String resolveBootstrapPasswordHash(AppConfig config) {
-  if (config.forceBootstrapAdminPasswordSync &&
-      config.bootstrapAdminPassword != null) {
-    return AuthService.hashPassword(config.bootstrapAdminPassword!);
-  }
-
-  return config.bootstrapAdminPasswordHash ??
-      AuthService.hashPassword(config.bootstrapAdminPassword!);
+  return config.resolveBootstrapPasswordHash();
 }
 
 Future<Application> buildApplication() async {
@@ -54,7 +48,7 @@ Future<Application> buildApplication() async {
     'bootstrap start driver=${config.databaseDriver} username=${config.bootstrapAdminUsername} forceSync=${config.forceBootstrapAdminPasswordSync} passwordProvided=${config.bootstrapAdminPassword != null} passwordHashProvided=${config.bootstrapAdminPasswordHash != null}',
   );
   await database.initialize();
-  final bootstrapPasswordHash = resolveBootstrapPasswordHash(config);
+  final bootstrapPasswordHash = config.resolveBootstrapPasswordHash();
   await database.ensureBootstrapAdmin(
     username: config.bootstrapAdminUsername,
     displayName: config.bootstrapAdminDisplayName,

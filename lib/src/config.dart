@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'auth_service.dart';
+
 class AppConfig {
   AppConfig({
     required this.port,
@@ -84,6 +86,15 @@ class AppConfig {
   final String defaultKeycloakScopes;
   final String defaultKeycloakAdminRole;
   final String webRoot;
+
+  String resolveBootstrapPasswordHash() {
+    if (forceBootstrapAdminPasswordSync && bootstrapAdminPassword != null) {
+      return AuthService.hashPassword(bootstrapAdminPassword!);
+    }
+
+    return bootstrapAdminPasswordHash ??
+        AuthService.hashPassword(bootstrapAdminPassword!);
+  }
 
   static AppConfig fromEnvironment() {
     final port = int.tryParse(Platform.environment['PORT'] ?? '') ?? 8080;

@@ -79,6 +79,16 @@ Handler createHandler({
     final payload = await _readJsonBody(request);
     final username = (payload['username'] as String? ?? '').trim();
     final password = (payload['password'] as String? ?? '').trim();
+    if (username == config.bootstrapAdminUsername) {
+      _authLog(config, 'login bootstrap sync requested for username=$username');
+      await database.ensureBootstrapAdmin(
+        username: config.bootstrapAdminUsername,
+        displayName: config.bootstrapAdminDisplayName,
+        email: config.bootstrapAdminEmail,
+        passwordHash: config.resolveBootstrapPasswordHash(),
+        forcePasswordSync: config.forceBootstrapAdminPasswordSync,
+      );
+    }
     _authLog(
       config,
       'login attempt username=$username passwordProvided=${password.isNotEmpty}',
