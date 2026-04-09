@@ -3,9 +3,13 @@
 set -Eeuo pipefail
 
 APP_NAME="cannonball"
-SCRIPT_PATH="${BASH_SOURCE[0]:-$0}"
+SCRIPT_PATH="$0"
 SCRIPT_DIR=""
 REPO_ROOT_FROM_SCRIPT=""
+
+if (set +u; [[ -n "${BASH_SOURCE[0]-}" ]]); then
+  SCRIPT_PATH="${BASH_SOURCE[0]}"
+fi
 
 if [[ -n "${SCRIPT_PATH}" && "${SCRIPT_PATH}" != "bash" && "${SCRIPT_PATH}" != "-" ]]; then
   SCRIPT_DIR="$(cd "$(dirname "${SCRIPT_PATH}")" && pwd)"
