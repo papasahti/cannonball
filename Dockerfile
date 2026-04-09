@@ -12,7 +12,11 @@ RUN mkdir -p /app/build \
 FROM debian:bookworm-slim
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates curl libsqlite3-0 \
+    && apt-get install -y --no-install-recommends ca-certificates curl libsqlite3-0 libsqlite3-dev \
+    && SQLITE_LIB="$(find /usr/lib -name 'libsqlite3.so.0' | head -n 1)" \
+    && [ -n "${SQLITE_LIB}" ] \
+    && ln -sf "${SQLITE_LIB}" "$(dirname "${SQLITE_LIB}")/libsqlite3.so" \
+    && ln -sf "$(dirname "${SQLITE_LIB}")/libsqlite3.so" /usr/lib/libsqlite3.so \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --system --home /app --shell /usr/sbin/nologin cannonball \
     && mkdir -p /app/web /app/docker /data \
