@@ -15,8 +15,11 @@ else
   DATA_DIR="${CANNONBALL_DATA_DIR:-${HOME}/.local/share/cannonball}"
 fi
 
-PORT_VALUE="${CANNONBALL_PORT:-8080}"
-PUBLIC_URL="${CANNONBALL_PUBLIC_URL:-http://localhost:${PORT_VALUE}}"
+APP_PORT="8080"
+HTTP_PORT="${CANNONBALL_HTTP_PORT:-80}"
+HTTPS_PORT="${CANNONBALL_HTTPS_PORT:-443}"
+PUBLIC_HOST="${CANNONBALL_PUBLIC_HOST:-localhost}"
+PUBLIC_URL="${CANNONBALL_PUBLIC_URL:-}"
 ADMIN_LOGIN="${CANNONBALL_APP_USERNAME:-admin}"
 ADMIN_NAME="${CANNONBALL_APP_ADMIN_DISPLAY_NAME:-System Administrator}"
 ADMIN_EMAIL="${CANNONBALL_APP_ADMIN_EMAIL:-admin@example.com}"
@@ -76,6 +79,11 @@ set_env_value() {
   fi
 
   rm -f "${file}.bak"
+}
+
+is_local_host() {
+  local host="$1"
+  [[ "${host}" = "localhost" || "${host}" = "127.0.0.1" || "${host}" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]
 }
 
 normalize_repo_url() {
@@ -156,8 +164,9 @@ install_source() {
 }
 
 write_default_env() {
+  local public_url="$1"
   cat >"${INSTALL_DIR}/.env" <<EOF
-PORT=${PORT_VALUE}
+PORT=${APP_PORT}
 DATABASE_DRIVER=sqlite
 DATABASE_PATH=/data/cannonball.db
 APP_WEB_ROOT=/app/web
@@ -169,7 +178,7 @@ ALLOW_INSECURE_COOKIE=true
 SESSION_TTL_HOURS=12
 APP_TITLE=cannonball
 DELIVERY_MODE=mattermost
-APP_BASE_URL=${PUBLIC_URL}
+APP_BASE_URL=${public_url}
 AUTH_MODE=local
 
 MATTERMOST_BASE_URL=
@@ -201,6 +210,17 @@ EOF
 }
 
 prepare_runtime_files() {
+  local public_url
+
+  if [[ -n "${PUBLIC_URL}" ]]; then
+    public_url="${PUBLIC_URL}"
+  elif is_local_host "${PUBLIC_HOST}"; then
+    public_url="http://${PUBLIC_HOST}"
+  else
+    public_url="https://${PUBLIC_HOST}"
+  fi
+  PUBLIC_URL="${public_url}"
+
   mkdir -p "${DATA_DIR}"
   chmod 0777 "${DATA_DIR}"
 
@@ -208,11 +228,11 @@ prepare_runtime_files() {
     if [[ -f "${INSTALL_DIR}/.env.example" ]]; then
       cp "${INSTALL_DIR}/.env.example" "${INSTALL_DIR}/.env"
     else
-      write_default_env
+      write_default_env "${public_url}"
     fi
   fi
 
-  set_env_value "${INSTALL_DIR}/.env" "PORT" "${PORT_VALUE}"
+  set_env_value "${INSTALL_DIR}/.env" "PORT" "${APP_PORT}"
   set_env_value "${INSTALL_DIR}/.env" "DATABASE_DRIVER" "sqlite"
   set_env_value "${INSTALL_DIR}/.env" "DATABASE_PATH" "/data/cannonball.db"
   set_env_value "${INSTALL_DIR}/.env" "APP_WEB_ROOT" "/app/web"
@@ -220,13 +240,50 @@ prepare_runtime_files() {
   set_env_value "${INSTALL_DIR}/.env" "APP_ADMIN_DISPLAY_NAME" "${ADMIN_NAME}"
   set_env_value "${INSTALL_DIR}/.env" "APP_ADMIN_EMAIL" "${ADMIN_EMAIL}"
   set_env_value "${INSTALL_DIR}/.env" "APP_PASSWORD" "${APP_PASSWORD}"
-  set_env_value "${INSTALL_DIR}/.env" "APP_BASE_URL" "${PUBLIC_URL}"
+  set_env_value "${INSTALL_DIR}/.env" "APP_BASE_URL" "${public_url}"
+
+  if is_local_host "${PUBLIC_HOST}"; then
+    cat >"${INSTALL_DIR}/Caddyfile" <<EOF
+:80 {
+  reverse_proxy cannonball:${APP_PORT}
+}
+
+:443 {
+  tls internal
+  reverse_proxy cannonball:${APP_PORT}
+}
+EOF
+  else
+    cat >"${INSTALL_DIR}/Caddyfile" <<EOF
+${PUBLIC_HOST} {
+  reverse_proxy cannonball:${APP_PORT}
+}
+EOF
+  fi
 
   cat >"${INSTALL_DIR}/docker-compose.override.yml" <<EOF
 services:
   cannonball:
+    ports: []
+    environment:
+      PORT: ${APP_PORT}
     volumes:
       - ${DATA_DIR}:/data
+  caddy:
+    image: caddy:2.8-alpine
+    restart: unless-stopped
+    depends_on:
+      - cannonball
+    ports:
+      - "${HTTP_PORT}:80"
+      - "${HTTPS_PORT}:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+volumes:
+  caddy_data:
+  caddy_config:
 EOF
 }
 
@@ -244,6 +301,8 @@ print_summary() {
 cannonball запущен.
 
 URL: ${PUBLIC_URL}
+HTTP: http://${PUBLIC_HOST}:${HTTP_PORT}
+HTTPS: https://${PUBLIC_HOST}:${HTTPS_PORT}
 Логин администратора: ${ADMIN_LOGIN}
 Пароль администратора: ${APP_PASSWORD}
 Каталог установки: ${INSTALL_DIR}
@@ -251,7 +310,7 @@ URL: ${PUBLIC_URL}
 
 Проверка:
   cd ${INSTALL_DIR} && ${COMPOSE_CMD} ps
-  curl -fsSL ${PUBLIC_URL}/health
+  curl -fsSL http://${PUBLIC_HOST}:${HTTP_PORT}/health
 EOF
 }
 
