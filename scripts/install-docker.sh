@@ -204,6 +204,7 @@ install_source() {
 
 prepare_runtime_files() {
   mkdir -p "${DATA_DIR}"
+  chmod 0777 "${DATA_DIR}"
 
   if [[ ! -f "${INSTALL_DIR}/.env" && -f "${INSTALL_DIR}/.env.example" ]]; then
     cp "${INSTALL_DIR}/.env.example" "${INSTALL_DIR}/.env"
