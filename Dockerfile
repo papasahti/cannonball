@@ -24,7 +24,6 @@ RUN apt-get update \
 
 WORKDIR /app
 
-COPY --from=build /runtime/ /
 COPY --from=build /app/build/cannonball /app/cannonball
 COPY web /app/web
 COPY docker/entrypoint.sh /app/docker/entrypoint.sh
