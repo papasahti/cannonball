@@ -6,7 +6,8 @@ COPY pubspec.yaml ./
 RUN dart pub get
 
 COPY . .
-RUN dart compile exe bin/server.dart -o /app/build/cannonball
+RUN mkdir -p /app/build \
+    && dart compile exe bin/server.dart -o /app/build/cannonball
 
 FROM debian:bookworm-slim
 
