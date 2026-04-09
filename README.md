@@ -28,7 +28,7 @@ docker compose up --build
 
 - база хранится в persistent volume
 - по умолчанию используется `SQLite`
-- для первого входа нужно задать `APP_PASSWORD` или `APP_PASSWORD_HASH` в `.env`
+- по умолчанию первый вход: `admin / adminadmin`
 
 Если хочется поставить всё одной командой на Linux и сразу поднять Docker-стек, теперь есть отдельный install-скрипт:
 
@@ -39,7 +39,7 @@ docker compose up --build
 Скрипт:
 
 - создаёт `.env`, если его ещё нет
-- генерирует пароль администратора, если он не задан
+- ставит дефолтный вход `admin / adminadmin`
 - поднимает приложение через Docker Compose
 - делает bind mount для базы на Linux-каталог
 - печатает URL, логин и пароль первого администратора
@@ -55,7 +55,7 @@ curl -fsSL https://raw.githubusercontent.com/papasahti/cannonball/main/scripts/i
 - скачает текущую `main` ветку из GitHub
 - положит проект в `/opt/cannonball-docker`
 - создаст `.env`
-- сгенерирует пароль администратора
+- поставит дефолтный вход `admin / adminadmin`
 - поднимет приложение через `docker compose`
 - сохранит базу в `/var/lib/cannonball`
 
@@ -77,6 +77,28 @@ curl -fsSL https://raw.githubusercontent.com/papasahti/cannonball/main/scripts/i
 - `CANNONBALL_REPO_URL`
 - `CANNONBALL_REPO_REF`
 - `CANNONBALL_REPO_ARCHIVE_URL`
+
+Если нужно полностью удалить Docker-инсталляцию и начать с нуля, есть отдельный remove-скрипт:
+
+```bash
+./scripts/remove-docker.sh
+```
+
+И тот же сценарий через `curl`:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/papasahti/cannonball/main/scripts/remove-docker.sh | sudo bash
+```
+
+Он:
+
+- останавливает `docker compose`
+- удаляет контейнеры `cannonball`
+- удаляет image `cannonball:local`
+- удаляет `/opt/cannonball-docker`
+- удаляет `/var/lib/cannonball`
+
+После этого можно ставить приложение заново с чистого листа.
 
 ## Установка на Linux
 
