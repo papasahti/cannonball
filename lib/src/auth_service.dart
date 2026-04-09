@@ -159,12 +159,26 @@ class AuthService {
     if (session == null) {
       return null;
     }
-    final expiresAt = DateTime.parse(session['expires_at'] as String).toUtc();
+    final expiresAtValue =
+        session['expiresAt'] ?? session['expires_at'];
+    if (expiresAtValue == null) {
+      await _database.deleteSession(cookieToken);
+      return null;
+    }
+    final expiresAt = DateTime.parse(expiresAtValue.toString()).toUtc();
     if (!expiresAt.isAfter(now)) {
       await _database.deleteSession(cookieToken);
       return null;
     }
-    final user = await _database.getUserById(session['user_id'] as int);
+    final userIdValue = session['userId'] ?? session['user_id'];
+    final userId = userIdValue is int
+        ? userIdValue
+        : int.tryParse(userIdValue?.toString() ?? '');
+    if (userId == null) {
+      await _database.deleteSession(cookieToken);
+      return null;
+    }
+    final user = await _database.getUserById(userId);
     if (user == null || user['isActive'] != true) {
       await _database.deleteSession(cookieToken);
       return null;
