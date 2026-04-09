@@ -22,7 +22,7 @@ cp .env.example .env
 docker compose up --build
 ```
 
-После запуска приложение будет доступно на `http://localhost`.
+После запуска приложение будет доступно на `http://localhost:8080`.
 
 Что важно:
 
@@ -41,7 +41,6 @@ docker compose up --build
 - создаёт `.env`, если его ещё нет
 - ставит дефолтный вход `admin / adminadmin`
 - поднимает приложение через Docker Compose
-- поднимает reverse proxy на `80` и `443`
 - делает bind mount для базы на Linux-каталог
 - печатает URL, логин и пароль первого администратора
 
@@ -58,17 +57,7 @@ curl -fsSL https://raw.githubusercontent.com/papasahti/cannonball/main/scripts/i
 - создаст `.env`
 - поставит дефолтный вход `admin / adminadmin`
 - поднимет приложение через `docker compose`
-- поднимет reverse proxy на `80` и `443`
 - сохранит базу в `/var/lib/cannonball`
-
-По умолчанию:
-
-- HTTP: `80`
-- HTTPS: `443`
-- само приложение внутри Docker продолжает работать на `8080`
-
-Если `CANNONBALL_PUBLIC_HOST` не задан, скрипт настраивает `localhost`.
-Для локального `https://localhost` используется внутренний сертификат Caddy, поэтому браузер может показать предупреждение.
 
 Если нужно, можно переопределить ветку или репозиторий:
 
@@ -80,9 +69,7 @@ curl -fsSL https://raw.githubusercontent.com/papasahti/cannonball/main/scripts/i
 
 Что можно переопределить:
 
-- `CANNONBALL_HTTP_PORT`
-- `CANNONBALL_HTTPS_PORT`
-- `CANNONBALL_PUBLIC_HOST`
+- `CANNONBALL_PORT`
 - `CANNONBALL_APP_PASSWORD`
 - `CANNONBALL_INSTALL_DIR`
 - `CANNONBALL_DATA_DIR`
@@ -135,7 +122,7 @@ sudo ./install.sh
 
 ```bash
 systemctl status cannonball
-curl http://127.0.0.1/health
+curl http://127.0.0.1:8080/health
 ```
 
 ## Запуск через Helm

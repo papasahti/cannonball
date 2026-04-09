@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 IMAGE_NAME="${CANNONBALL_IMAGE_NAME:-cannonball:quickstart}"
 CONTAINER_NAME="${CANNONBALL_CONTAINER_NAME:-cannonball-quickstart}"
-HOST_PORT="${CANNONBALL_PORT:-8080}"
+HOST_PORT="${CANNONBALL_PORT:-8081}"
 DATA_DIR="${CANNONBALL_DATA_DIR:-$ROOT_DIR/.quickstart-data}"
 APP_TITLE="${CANNONBALL_APP_TITLE:-cannonball}"
 APP_USERNAME="${CANNONBALL_APP_USERNAME:-admin}"
