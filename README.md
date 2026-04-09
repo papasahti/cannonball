@@ -44,10 +44,10 @@ docker compose up --build
 - делает bind mount для базы на Linux-каталог
 - печатает URL, логин и пароль первого администратора
 
-Если запуск идёт не из репозитория, а прямо через `curl`, можно использовать тот же скрипт из raw URL. Для этого нужен raw URL самого скрипта и URL архива репозитория:
+Если запуск идёт не из репозитория, а прямо через `curl`, используй отдельный install-скрипт для удалённой установки:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/papasahti/cannonball/main/scripts/install-docker.sh | bash
+curl -fsSL https://raw.githubusercontent.com/papasahti/cannonball/main/scripts/install-docker-curl.sh | sudo bash
 ```
 
 Этой команды достаточно. Скрипт сам:
@@ -62,7 +62,7 @@ curl -fsSL https://raw.githubusercontent.com/papasahti/cannonball/main/scripts/i
 Если нужно, можно переопределить ветку или репозиторий:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/papasahti/cannonball/main/scripts/install-docker.sh | \
+curl -fsSL https://raw.githubusercontent.com/papasahti/cannonball/main/scripts/install-docker-curl.sh | \
   CANNONBALL_REPO_REF=main \
   bash
 ```
