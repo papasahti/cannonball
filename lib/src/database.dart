@@ -436,6 +436,275 @@ class AppDatabase {
     }
   }
 
+  bool hasMattermostDirectoryUsers() {
+    final result = db.select(
+      'SELECT 1 FROM mattermost_directory_users LIMIT 1',
+    );
+    return result.isNotEmpty;
+  }
+
+  bool hasMattermostDirectoryGroups() {
+    final result = db.select(
+      'SELECT 1 FROM mattermost_directory_groups LIMIT 1',
+    );
+    return result.isNotEmpty;
+  }
+
+  bool hasMattermostDirectoryChannels() {
+    final result = db.select(
+      'SELECT 1 FROM mattermost_directory_channels LIMIT 1',
+    );
+    return result.isNotEmpty;
+  }
+
+  void replaceMattermostDirectoryUsers(List<Map<String, Object?>> users) {
+    final now = DateTime.now().toUtc().toIso8601String();
+    db.execute('BEGIN');
+    try {
+      final seenIds = <String>{};
+      for (final user in users) {
+        final id = (user['id'] as String? ?? '').trim();
+        if (id.isEmpty || !seenIds.add(id)) {
+          continue;
+        }
+        db.execute(
+          '''
+          INSERT INTO mattermost_directory_users (
+            id, username, display_name, email, updated_at
+          ) VALUES (?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+            username = excluded.username,
+            display_name = excluded.display_name,
+            email = excluded.email,
+            updated_at = excluded.updated_at
+          ''',
+          [
+            id,
+            (user['username'] as String? ?? '').trim(),
+            (user['displayName'] as String? ?? '').trim(),
+            (user['email'] as String? ?? '').trim(),
+            now,
+          ],
+        );
+      }
+
+      if (seenIds.isEmpty) {
+        db.execute('DELETE FROM mattermost_directory_users');
+      } else {
+        final placeholders = List.filled(seenIds.length, '?').join(', ');
+        db.execute(
+          'DELETE FROM mattermost_directory_users WHERE id NOT IN ($placeholders)',
+          seenIds.toList(growable: false),
+        );
+      }
+      upsertSettings({'mattermost.directoryUsersSyncedAt': now});
+      db.execute('COMMIT');
+    } catch (_) {
+      db.execute('ROLLBACK');
+      rethrow;
+    }
+  }
+
+  void replaceMattermostDirectoryGroups(List<Map<String, Object?>> groups) {
+    final now = DateTime.now().toUtc().toIso8601String();
+    db.execute('BEGIN');
+    try {
+      final seenIds = <String>{};
+      for (final group in groups) {
+        final id = (group['id'] as String? ?? '').trim();
+        if (id.isEmpty || !seenIds.add(id)) {
+          continue;
+        }
+        db.execute(
+          '''
+          INSERT INTO mattermost_directory_groups (
+            id, name, display_name, member_count, updated_at
+          ) VALUES (?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+            name = excluded.name,
+            display_name = excluded.display_name,
+            member_count = excluded.member_count,
+            updated_at = excluded.updated_at
+          ''',
+          [
+            id,
+            (group['name'] as String? ?? '').trim(),
+            (group['displayName'] as String? ?? '').trim(),
+            (group['memberCount'] as num?)?.toInt() ?? 0,
+            now,
+          ],
+        );
+      }
+
+      if (seenIds.isEmpty) {
+        db.execute('DELETE FROM mattermost_directory_groups');
+      } else {
+        final placeholders = List.filled(seenIds.length, '?').join(', ');
+        db.execute(
+          'DELETE FROM mattermost_directory_groups WHERE id NOT IN ($placeholders)',
+          seenIds.toList(growable: false),
+        );
+      }
+      upsertSettings({'mattermost.directoryGroupsSyncedAt': now});
+      db.execute('COMMIT');
+    } catch (_) {
+      db.execute('ROLLBACK');
+      rethrow;
+    }
+  }
+
+  void replaceMattermostDirectoryChannels(List<Map<String, Object?>> channels) {
+    final now = DateTime.now().toUtc().toIso8601String();
+    db.execute('BEGIN');
+    try {
+      final seenIds = <String>{};
+      for (final channel in channels) {
+        final id = (channel['id'] as String? ?? '').trim();
+        if (id.isEmpty || !seenIds.add(id)) {
+          continue;
+        }
+        db.execute(
+          '''
+          INSERT INTO mattermost_directory_channels (
+            id, name, display_name, channel_type, updated_at
+          ) VALUES (?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+            name = excluded.name,
+            display_name = excluded.display_name,
+            channel_type = excluded.channel_type,
+            updated_at = excluded.updated_at
+          ''',
+          [
+            id,
+            (channel['name'] as String? ?? '').trim(),
+            (channel['displayName'] as String? ?? '').trim(),
+            (channel['type'] as String? ?? '').trim(),
+            now,
+          ],
+        );
+      }
+
+      if (seenIds.isEmpty) {
+        db.execute('DELETE FROM mattermost_directory_channels');
+      } else {
+        final placeholders = List.filled(seenIds.length, '?').join(', ');
+        db.execute(
+          'DELETE FROM mattermost_directory_channels WHERE id NOT IN ($placeholders)',
+          seenIds.toList(growable: false),
+        );
+      }
+      upsertSettings({'mattermost.directoryChannelsSyncedAt': now});
+      db.execute('COMMIT');
+    } catch (_) {
+      db.execute('ROLLBACK');
+      rethrow;
+    }
+  }
+
+  List<Map<String, Object?>> searchMattermostDirectoryUsers(String query) {
+    final normalized = '%${query.trim().toLowerCase()}%';
+    final rows = query.trim().isEmpty
+        ? db.select(
+            '''
+            SELECT id, username, display_name, email
+            FROM mattermost_directory_users
+            ORDER BY lower(display_name), lower(username)
+            LIMIT 50
+            ''',
+          )
+        : db.select(
+            '''
+            SELECT id, username, display_name, email
+            FROM mattermost_directory_users
+            WHERE lower(username) LIKE ?
+               OR lower(display_name) LIKE ?
+               OR lower(email) LIKE ?
+            ORDER BY
+              CASE
+                WHEN lower(username) = ? THEN 0
+                WHEN lower(username) LIKE ? THEN 1
+                ELSE 2
+              END,
+              lower(display_name),
+              lower(username)
+            LIMIT 50
+            ''',
+            [normalized, normalized, normalized, query.trim().toLowerCase(), normalized],
+          );
+    return rows
+        .map((row) => {
+              'id': row['id'],
+              'username': row['username'],
+              'displayName': row['display_name'],
+              'email': row['email'],
+            })
+        .toList(growable: false);
+  }
+
+  List<Map<String, Object?>> searchMattermostDirectoryGroups(String query) {
+    final normalized = '%${query.trim().toLowerCase()}%';
+    final rows = query.trim().isEmpty
+        ? db.select(
+            '''
+            SELECT id, name, display_name, member_count
+            FROM mattermost_directory_groups
+            ORDER BY lower(display_name), lower(name)
+            LIMIT 50
+            ''',
+          )
+        : db.select(
+            '''
+            SELECT id, name, display_name, member_count
+            FROM mattermost_directory_groups
+            WHERE lower(name) LIKE ?
+               OR lower(display_name) LIKE ?
+            ORDER BY lower(display_name), lower(name)
+            LIMIT 50
+            ''',
+            [normalized, normalized],
+          );
+    return rows
+        .map((row) => {
+              'id': row['id'],
+              'name': row['name'],
+              'displayName': row['display_name'],
+              'memberCount': row['member_count'],
+            })
+        .toList(growable: false);
+  }
+
+  List<Map<String, Object?>> searchMattermostDirectoryChannels(String query) {
+    final normalized = '%${query.trim().toLowerCase()}%';
+    final rows = query.trim().isEmpty
+        ? db.select(
+            '''
+            SELECT id, name, display_name, channel_type
+            FROM mattermost_directory_channels
+            ORDER BY lower(display_name), lower(name)
+            LIMIT 100
+            ''',
+          )
+        : db.select(
+            '''
+            SELECT id, name, display_name, channel_type
+            FROM mattermost_directory_channels
+            WHERE lower(name) LIKE ?
+               OR lower(display_name) LIKE ?
+            ORDER BY lower(display_name), lower(name)
+            LIMIT 100
+            ''',
+            [normalized, normalized],
+          );
+    return rows
+        .map((row) => {
+              'id': row['id'],
+              'name': row['name'],
+              'displayName': row['display_name'],
+              'type': row['channel_type'],
+            })
+        .toList(growable: false);
+  }
+
   int insertCampaign({
     required DateTime createdAt,
     required String createdBy,
@@ -1193,6 +1462,54 @@ class AppDatabase {
             FOREIGN KEY (user_id) REFERENCES users(id)
           );
         ''');
+      },
+    ),
+    _DatabaseMigration(
+      version: '010_mattermost_directory_cache',
+      description: 'Create Mattermost directory cache tables.',
+      apply: (database) {
+        database.db.execute('''
+          CREATE TABLE IF NOT EXISTS mattermost_directory_users (
+            id TEXT PRIMARY KEY,
+            username TEXT NOT NULL,
+            display_name TEXT NOT NULL,
+            email TEXT NOT NULL DEFAULT '',
+            updated_at TEXT NOT NULL
+          );
+        ''');
+
+        database.db.execute('''
+          CREATE TABLE IF NOT EXISTS mattermost_directory_groups (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            display_name TEXT NOT NULL,
+            member_count INTEGER NOT NULL DEFAULT 0,
+            updated_at TEXT NOT NULL
+          );
+        ''');
+
+        database.db.execute('''
+          CREATE TABLE IF NOT EXISTS mattermost_directory_channels (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            display_name TEXT NOT NULL,
+            channel_type TEXT NOT NULL DEFAULT '',
+            updated_at TEXT NOT NULL
+          );
+        ''');
+
+        database.db.execute(
+          'CREATE INDEX IF NOT EXISTS idx_mattermost_directory_users_username ON mattermost_directory_users(username)',
+        );
+        database.db.execute(
+          'CREATE INDEX IF NOT EXISTS idx_mattermost_directory_users_display_name ON mattermost_directory_users(display_name)',
+        );
+        database.db.execute(
+          'CREATE INDEX IF NOT EXISTS idx_mattermost_directory_groups_name ON mattermost_directory_groups(name)',
+        );
+        database.db.execute(
+          'CREATE INDEX IF NOT EXISTS idx_mattermost_directory_channels_name ON mattermost_directory_channels(name)',
+        );
       },
     ),
     _DatabaseMigration(

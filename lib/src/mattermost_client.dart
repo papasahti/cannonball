@@ -39,16 +39,19 @@ class MattermostChannel {
     required this.id,
     required this.name,
     required this.displayName,
+    required this.type,
   });
 
   final String id;
   final String name;
   final String displayName;
+  final String type;
 
   Map<String, Object?> toJson() => {
     'id': id,
     'name': name,
     'displayName': displayName,
+    'type': type,
   };
 }
 
@@ -111,9 +114,78 @@ class MattermostClient {
   }
 
   Future<List<MattermostUser>> listUsers() async {
-    final response = await _get('/api/v4/users?page=0&per_page=100');
-    final payload = _decodeList(response);
-    return payload.map(_parseUser).toList(growable: false);
+    final results = <MattermostUser>[];
+    var page = 0;
+    while (true) {
+      final response = await _get('/api/v4/users?page=$page&per_page=200');
+      final payload = _decodeList(response);
+      if (payload.isEmpty) {
+        break;
+      }
+      results.addAll(payload.map(_parseUser));
+      if (payload.length < 200) {
+        break;
+      }
+      page += 1;
+    }
+    return results;
+  }
+
+  Future<List<MattermostChannel>> listDirectoryChannels() async {
+    final results = <MattermostChannel>[];
+    final seen = <String>{};
+    final resolvedTeamId = await _ensureTeamId();
+
+    for (final channel in configuredChannels) {
+      if (seen.add(channel.toLowerCase())) {
+        results.add(
+          MattermostChannel(
+            id: channel,
+            name: channel,
+            displayName: channel,
+            type: '',
+          ),
+        );
+      }
+    }
+
+    if (resolvedTeamId == null) {
+      return results;
+    }
+
+    var page = 0;
+    while (true) {
+      final response = await _get(
+        '/api/v4/teams/$resolvedTeamId/channels?page=$page&per_page=200',
+      );
+      final payload = _decodeList(response);
+      if (payload.isEmpty) {
+        break;
+      }
+      for (final item in payload) {
+        final channel = _parseChannel(item);
+        if (seen.add(channel.name.toLowerCase())) {
+          results.add(channel);
+        }
+      }
+      if (payload.length < 200) {
+        break;
+      }
+      page += 1;
+    }
+
+    final memberResponse = await _get(
+      '/api/v4/users/me/teams/$resolvedTeamId/channels',
+    );
+    final memberPayload = _decodeList(memberResponse);
+    for (final item in memberPayload) {
+      final channel = _parseChannel(item);
+      if (seen.add(channel.name.toLowerCase())) {
+        results.add(channel);
+      }
+    }
+
+    return results;
   }
 
   Future<List<MattermostChannel>> searchChannels(String query) async {
@@ -126,7 +198,12 @@ class MattermostClient {
           channel.toLowerCase().contains(normalizedQuery.toLowerCase())) {
         if (seen.add(channel.toLowerCase())) {
           results.add(
-            MattermostChannel(id: channel, name: channel, displayName: channel),
+            MattermostChannel(
+              id: channel,
+              name: channel,
+              displayName: channel,
+              type: '',
+            ),
           );
         }
       }
@@ -179,6 +256,33 @@ class MattermostClient {
       }
       rethrow;
     }
+  }
+
+  Future<List<MattermostGroup>> listGroups() async {
+    final results = <MattermostGroup>[];
+    var page = 0;
+    while (true) {
+      try {
+        final response = await _get('/api/v4/groups?page=$page&per_page=200');
+        final payload = _decodeList(response);
+        if (payload.isEmpty) {
+          break;
+        }
+        results.addAll(payload.map(_parseGroup));
+        if (payload.length < 200) {
+          break;
+        }
+        page += 1;
+      } on MattermostApiException catch (error) {
+        if (error.statusCode == 403 ||
+            error.statusCode == 404 ||
+            error.statusCode == 501) {
+          return const <MattermostGroup>[];
+        }
+        rethrow;
+      }
+    }
+    return results;
   }
 
   Future<List<MattermostUser>> listGroupMembers(String groupId) async {
@@ -343,7 +447,9 @@ class MattermostClient {
       id: item['id'] as String,
       username: item['username'] as String,
       displayName: displayName.isEmpty
-          ? (item['nickname'] as String?)?.trim() ?? ''
+          ? ((item['nickname'] as String?)?.trim().isNotEmpty == true
+                ? (item['nickname'] as String).trim()
+                : item['username'] as String)
           : displayName,
       email: (item['email'] as String?)?.trim() ?? '',
     );
@@ -356,6 +462,7 @@ class MattermostClient {
       displayName: (item['display_name'] as String?)?.trim().isNotEmpty == true
           ? item['display_name'] as String
           : item['name'] as String,
+      type: (item['type'] as String? ?? '').trim(),
     );
   }
 

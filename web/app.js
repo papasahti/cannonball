@@ -559,6 +559,8 @@ async function loadAudience() {
     return;
   }
   const query = elements.audienceSearch.value.trim();
+  const normalizedQuery = query.toLowerCase();
+  const shouldShowUserSuggestions = normalizedQuery.length >= 4;
   const response = await api('/api/audience?query=' + encodeURIComponent(query));
   if (!response.ok) {
     const emptyText =
@@ -572,6 +574,9 @@ async function loadAudience() {
   }
 
   const items = (response.items || []).filter(function (item) {
+    if (item.kind === 'user' && !shouldShowUserSuggestions) {
+      return false;
+    }
     if (item.kind === 'group') {
       return !state.selectedGroups.find(function (selected) {
         return selected.id === item.id;
@@ -582,10 +587,17 @@ async function loadAudience() {
     });
   });
 
+  let emptyText = 'Начни вводить имя сотрудника или группу.';
+  if (query && query.length < 4) {
+    emptyText = 'Подсказки по пользователям появятся с 4-го символа. Группы можно искать сразу.';
+  } else if (query) {
+    emptyText = 'Ничего не найдено.';
+  }
+
   renderSearchResults(
     elements.audienceResults,
     items,
-    query ? 'Ничего не найдено.' : 'Начни вводить имя, email или группу.',
+    emptyText,
     function (item) {
       if (item.kind === 'group') {
         state.selectedGroups.push(item);

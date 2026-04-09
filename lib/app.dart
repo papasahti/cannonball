@@ -7,6 +7,7 @@ import 'src/auth_service.dart';
 import 'src/config.dart';
 import 'src/database.dart';
 import 'src/database_factory.dart';
+import 'src/mattermost_directory_sync.dart';
 import 'src/settings_service.dart';
 
 class Application {
@@ -14,13 +15,16 @@ class Application {
     required this.config,
     required this.handler,
     required this.database,
+    this.directorySyncService,
   });
 
   final AppConfig config;
   final Handler handler;
   final AppDatabase database;
+  final MattermostDirectorySyncService? directorySyncService;
 
   void close() {
+    directorySyncService?.close();
     database.close();
   }
 }
@@ -45,6 +49,10 @@ Future<Application> buildApplication() async {
     secureCookies: config.secureCookies,
   );
   final settingsService = SettingsService(database: database, config: config);
+  final directorySyncService = MattermostDirectorySyncService(
+    database: database,
+    settingsService: settingsService,
+  )..start();
 
   final webRoot = Directory(config.webRoot);
   final handler = createHandler(
@@ -54,5 +62,10 @@ Future<Application> buildApplication() async {
     settingsService: settingsService,
     webRoot: webRoot,
   );
-  return Application(config: config, handler: handler, database: database);
+  return Application(
+    config: config,
+    handler: handler,
+    database: database,
+    directorySyncService: directorySyncService,
+  );
 }

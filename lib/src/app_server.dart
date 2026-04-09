@@ -29,7 +29,10 @@ Handler createHandler({
   final emailService = EmailService();
   final keycloakService = KeycloakService();
   final integrationRegistry = IntegrationRegistry(settingsService: settingsService);
-  final audienceService = AudienceService(registry: integrationRegistry);
+  final audienceService = AudienceService(
+    registry: integrationRegistry,
+    database: database,
+  );
   final inboundNotificationService = InboundNotificationService(
     audienceService: audienceService,
   );
