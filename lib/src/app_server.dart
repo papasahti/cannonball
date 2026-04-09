@@ -688,13 +688,13 @@ Handler createHandler({
     }
 
     final payload = await _readJsonBody(request);
-    final username = (payload['username'] as String? ?? '')
+    final username = (payload['username']?.toString() ?? '')
         .trim()
         .toLowerCase();
-    final displayName = (payload['displayName'] as String? ?? '').trim();
-    final email = (payload['email'] as String? ?? '').trim().toLowerCase();
-    final password = (payload['password'] as String? ?? '').trim();
-    final role = (payload['role'] as String? ?? 'user').trim();
+    final displayName = (payload['displayName']?.toString() ?? '').trim();
+    final email = (payload['email']?.toString() ?? '').trim().toLowerCase();
+    final password = (payload['password']?.toString() ?? '').trim();
+    final role = (payload['role']?.toString() ?? 'user').trim();
     final isActive = payload['isActive'] == true;
     _authLog(
       config,
@@ -742,9 +742,21 @@ Handler createHandler({
       config,
       'admin create user success username=$username id=$id role=$role active=$isActive',
     );
+    final createdUser = await database.getUserById(id);
+    if (createdUser == null) {
+      _authLog(
+        config,
+        'admin create user failed username=$username reason=user-not-found-after-create id=$id',
+      );
+      return _jsonResponse(HttpStatus.internalServerError, {
+        'ok': false,
+        'error': 'Пользователь был создан, но не удалось перечитать запись из базы.',
+      });
+    }
+
     return _jsonResponse(HttpStatus.ok, {
       'ok': true,
-      'user': _sanitizeUserMap((await database.getUserById(id))!),
+      'user': _sanitizeUserMap(createdUser),
     });
   });
 
@@ -1398,11 +1410,11 @@ Future<AuthenticatedUser?> _requireAdmin(
 
 Map<String, Object?> _sanitizeUserMap(Map<String, Object?> user) => {
   'id': user['id'],
-  'username': user['username'],
-  'displayName': user['displayName'],
-  'email': user['email'],
-  'authProvider': user['authProvider'],
-  'role': user['role'],
+  'username': user['username']?.toString() ?? '',
+  'displayName': user['displayName']?.toString() ?? '',
+  'email': user['email']?.toString() ?? '',
+  'authProvider': user['authProvider']?.toString() ?? 'local',
+  'role': user['role']?.toString() ?? 'user',
   'isActive': user['isActive'],
   'createdAt': user['createdAt'],
   'updatedAt': user['updatedAt'],
