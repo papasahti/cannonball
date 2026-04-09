@@ -107,6 +107,7 @@ const elements = {
   resetForm: document.getElementById('reset-form'),
   loginUsername: document.getElementById('login-username'),
   loginPassword: document.getElementById('login-password'),
+  loginPasswordToggle: document.getElementById('login-password-toggle'),
   forgotLogin: document.getElementById('forgot-login'),
   resetPassword: document.getElementById('reset-password'),
   resetPasswordConfirm: document.getElementById('reset-password-confirm'),
@@ -252,6 +253,9 @@ function bindEvents() {
   elements.resetForm.addEventListener('submit', onResetPassword);
   bindSubmitOnEnter(elements.loginUsername, elements.loginForm);
   bindSubmitOnEnter(elements.loginPassword, elements.loginForm);
+  if (elements.loginPasswordToggle) {
+    elements.loginPasswordToggle.addEventListener('click', toggleLoginPasswordVisibility);
+  }
   bindSubmitOnEnter(elements.forgotLogin, elements.forgotForm);
   bindSubmitOnEnter(elements.resetPassword, elements.resetForm);
   bindSubmitOnEnter(elements.resetPasswordConfirm, elements.resetForm);
@@ -422,6 +426,7 @@ async function onLogin(event) {
   }
 
   elements.loginPassword.value = '';
+  resetLoginPasswordVisibility();
   await initializeSession(response.user);
 }
 
@@ -505,6 +510,7 @@ async function onLogout() {
   state.resetToken = null;
   state.currentSettingsPanel = 'product';
   state.authMessage = '';
+  resetLoginPasswordVisibility();
   elements.loginForm.reset();
   elements.forgotForm.reset();
   elements.resetForm.reset();
@@ -2704,10 +2710,40 @@ function formatSettingsPanelLabel(panelId) {
 }
 
 function showLogin() {
+  resetLoginPasswordVisibility();
   switchAuthMode(state.authMode);
   elements.loginView.classList.remove('hidden');
   elements.appView.classList.add('hidden');
   syncViewportScrollbarOffset();
+}
+
+function toggleLoginPasswordVisibility() {
+  if (!elements.loginPassword || !elements.loginPasswordToggle) {
+    return;
+  }
+
+  const isVisible = elements.loginPassword.type === 'text';
+  elements.loginPassword.type = isVisible ? 'password' : 'text';
+  elements.loginPasswordToggle.textContent = isVisible ? 'Показать' : 'Скрыть';
+  elements.loginPasswordToggle.setAttribute(
+    'aria-label',
+    isVisible ? 'Показать пароль' : 'Скрыть пароль',
+  );
+  elements.loginPasswordToggle.setAttribute(
+    'aria-pressed',
+    isVisible ? 'false' : 'true',
+  );
+}
+
+function resetLoginPasswordVisibility() {
+  if (!elements.loginPassword || !elements.loginPasswordToggle) {
+    return;
+  }
+
+  elements.loginPassword.type = 'password';
+  elements.loginPasswordToggle.textContent = 'Показать';
+  elements.loginPasswordToggle.setAttribute('aria-label', 'Показать пароль');
+  elements.loginPasswordToggle.setAttribute('aria-pressed', 'false');
 }
 
 function showApp() {

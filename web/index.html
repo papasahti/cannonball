@@ -27,12 +27,23 @@
           </label>
           <label class="field">
             <span>Пароль</span>
-            <input
-              id="login-password"
-              type="password"
-              autocomplete="current-password"
-              aria-describedby="login-error"
-            />
+            <div class="password-field">
+              <input
+                id="login-password"
+                type="password"
+                autocomplete="current-password"
+                aria-describedby="login-error"
+              />
+              <button
+                id="login-password-toggle"
+                class="password-toggle"
+                type="button"
+                aria-label="Показать пароль"
+                aria-pressed="false"
+              >
+                Показать
+              </button>
+            </div>
           </label>
           <button class="primary-button" type="submit">Войти</button>
         </form>
