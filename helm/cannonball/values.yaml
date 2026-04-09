@@ -1,0 +1,77 @@
+replicaCount: 1
+
+deploymentStrategy:
+  type: Recreate
+
+image:
+  repository: cannonball
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: cannonball.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+resources: {}
+
+persistence:
+  enabled: true
+  accessModes:
+    - ReadWriteOnce
+  size: 1Gi
+  storageClassName: ""
+
+env:
+  PORT: "8080"
+  DATABASE_DRIVER: sqlite
+  DATABASE_PATH: /data/cannonball.db
+  APP_WEB_ROOT: /app/web
+  APP_USERNAME: admin
+  APP_ADMIN_DISPLAY_NAME: System Administrator
+  APP_ADMIN_EMAIL: admin@example.com
+  APP_PASSWORD: change-me
+  APP_PASSWORD_HASH: ""
+  ALLOW_INSECURE_COOKIE: "false"
+  SESSION_TTL_HOURS: "12"
+  APP_TITLE: cannonball
+  DELIVERY_MODE: mattermost
+  APP_BASE_URL: https://cannonball.example.com
+  AUTH_MODE: local
+  MATTERMOST_BASE_URL: https://mattermost.example.com
+  MATTERMOST_TOKEN: change-me
+  MATTERMOST_TEAM_ID: ""
+  MATTERMOST_TEAM_NAME: devops
+  MATTERMOST_CHANNELS: alerts,dev
+  N8N_BASE_URL: ""
+  N8N_WEBHOOK_URL: ""
+  N8N_API_KEY: ""
+  N8N_WEBHOOK_SECRET: ""
+  N8N_INBOUND_SECRET: ""
+  SMTP_HOST: ""
+  SMTP_PORT: "587"
+  SMTP_USERNAME: ""
+  SMTP_PASSWORD: ""
+  SMTP_FROM_EMAIL: ""
+  SMTP_FROM_NAME: cannonball
+  SMTP_USE_SSL: "false"
+  KEYCLOAK_ISSUER_URL: ""
+  KEYCLOAK_CLIENT_ID: ""
+  KEYCLOAK_CLIENT_SECRET: ""
+  KEYCLOAK_SCOPES: openid profile email
+  KEYCLOAK_ADMIN_ROLE: cannonball-admin
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

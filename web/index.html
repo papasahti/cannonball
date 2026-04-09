@@ -1,0 +1,898 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>cannonball</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="background-glow glow-left"></div>
+    <div class="background-glow glow-right"></div>
+
+    <main class="app-shell">
+      <section id="login-view" class="panel auth-panel hidden">
+        <div class="auth-brand">
+          <span class="auth-logo" aria-hidden="true"></span>
+          <span class="auth-brand-name">cannonball</span>
+        </div>
+        <h1 id="auth-title">Вход в личный кабинет</h1>
+        <p id="auth-subtitle" class="muted">
+          Корпоративная система рассылок.
+        </p>
+        <form id="login-form" class="stack">
+          <label class="field">
+            <span>Логин</span>
+            <input id="login-username" type="text" autocomplete="username" />
+          </label>
+          <label class="field">
+            <span>Пароль</span>
+            <input
+              id="login-password"
+              type="password"
+              autocomplete="current-password"
+              aria-describedby="login-error"
+            />
+          </label>
+          <button class="primary-button" type="submit">Войти</button>
+        </form>
+        <form id="forgot-form" class="stack hidden">
+          <label class="field">
+            <span>Логин или email</span>
+            <input id="forgot-login" type="text" autocomplete="email" />
+          </label>
+          <button class="primary-button" type="submit">Отправить письмо</button>
+        </form>
+        <form id="reset-form" class="stack hidden">
+          <label class="field">
+            <span>Новый пароль</span>
+            <input
+              id="reset-password"
+              type="password"
+              autocomplete="new-password"
+              aria-describedby="login-error"
+            />
+          </label>
+          <label class="field">
+            <span>Повтори новый пароль</span>
+            <input
+              id="reset-password-confirm"
+              type="password"
+              autocomplete="new-password"
+              aria-describedby="login-error"
+            />
+          </label>
+          <button class="primary-button" type="submit">Сохранить новый пароль</button>
+        </form>
+        <div class="auth-links">
+          <button id="show-forgot-button" class="ghost-button" type="button">
+            Забыли пароль?
+          </button>
+          <button id="show-login-button" class="ghost-button hidden" type="button">
+            Назад ко входу
+          </button>
+        </div>
+        <div id="auth-divider" class="auth-divider hidden">
+          <span>или</span>
+        </div>
+        <div id="auth-sso-panel" class="stack hidden">
+          <button id="sso-login-button" class="primary-button" type="button">
+            Войти через SSO
+          </button>
+          <p id="sso-caption" class="muted">
+            Корпоративный вход через Keycloak.
+          </p>
+        </div>
+        <p id="login-error" class="error-text"></p>
+      </section>
+
+      <section id="app-view" class="hidden">
+        <header class="topbar">
+          <div class="topbar-context">
+            <div class="eyebrow app-brand-badge">
+              <span class="app-brand-logo" aria-hidden="true"></span>
+              <span id="app-title-badge">cannonball</span>
+            </div>
+            <h1 id="page-title">Центр рассылки</h1>
+            <p class="muted" id="page-subtitle">
+              Платформа для адресных уведомлений, командных объявлений и управляемых маршрутов доставки.
+            </p>
+            <div id="page-meta" class="page-meta"></div>
+          </div>
+          <div class="topbar-actions">
+            <div class="user-cabinet panel">
+              <div class="user-cabinet-meta">
+                <span id="topbar-role" class="role-badge"></span>
+                <strong id="topbar-user-name"></strong>
+                <span id="topbar-user-login" class="muted"></span>
+              </div>
+              <div class="user-cabinet-actions">
+                <button id="topbar-logout-button" class="ghost-button subtle-button" type="button">
+                  Выйти
+                </button>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <div class="shell-grid">
+          <aside class="panel sidebar">
+            <div class="sidebar-heading">
+              <h2>Разделы</h2>
+            </div>
+            <nav id="sidebar-nav" class="nav-list"></nav>
+          </aside>
+
+          <section class="content-stack">
+            <section id="view-overview" class="panel view-section">
+              <div class="section-heading">
+                <div>
+                  <h2>Центр управления</h2>
+                  <p class="muted">
+                    Быстрый срез по доступу, маршрутам доставки и текущему состоянию платформы.
+                  </p>
+                </div>
+              </div>
+              <div id="overview-highlight" class="overview-highlight"></div>
+              <div id="overview-cards" class="metric-grid"></div>
+            </section>
+
+            <section id="view-compose" class="panel view-section hidden">
+              <div class="section-heading">
+                <div>
+                  <h2>Новая рассылка</h2>
+                  <p class="muted">
+                    Собери аудиторию, проверь маршрут и отправь сообщение в Mattermost без лишних шагов.
+                  </p>
+                </div>
+              </div>
+
+              <div class="composer-layout">
+                <div class="composer-main">
+                  <section class="target-section composer-card">
+                    <div class="section-heading compact">
+                      <div>
+                        <h3>Получатели и каналы</h3>
+                        <p class="muted composer-section-caption">Сначала выбери сотрудников и группы, затем при необходимости добавь каналы публикации.</p>
+                      </div>
+                    </div>
+                    <div class="composer-field-stack">
+                      <label class="field">
+                        <div class="token-field">
+                          <div id="selected-audience" class="token-list"></div>
+                          <input
+                            id="audience-search"
+                            type="search"
+                            placeholder="Имя, username, email или группа"
+                            autocomplete="section-audience one-time-code"
+                            autocapitalize="none"
+                            autocorrect="off"
+                            spellcheck="false"
+                            inputmode="search"
+                            data-1p-ignore="true"
+                            data-lpignore="true"
+                            data-form-type="other"
+                            role="combobox"
+                            aria-autocomplete="list"
+                            aria-expanded="false"
+                            aria-controls="audience-results"
+                          />
+                        </div>
+                        <span id="audience-hint" class="field-hint">
+                          Можно выбрать сотрудников, группы или отправить сообщение только в каналы публикации.
+                        </span>
+                      </label>
+                      <div id="audience-results" class="search-results"></div>
+                    </div>
+                    <div class="composer-field-stack">
+                      <div class="composer-subsection-heading">
+                        <h4>Каналы публикации</h4>
+                        <p class="muted">Используй каналы, если сообщение должно выйти в общие ленты.</p>
+                      </div>
+                    <label class="field">
+                      <div class="token-field">
+                        <div id="selected-channels" class="token-list"></div>
+                        <input
+                          id="channel-input"
+                          type="text"
+                          placeholder="Например: alerts"
+                          autocomplete="section-channel one-time-code"
+                          autocapitalize="none"
+                          autocorrect="off"
+                          spellcheck="false"
+                          inputmode="search"
+                          data-1p-ignore="true"
+                          data-lpignore="true"
+                          data-form-type="other"
+                          role="combobox"
+                          aria-autocomplete="list"
+                          aria-expanded="false"
+                          aria-controls="channel-results"
+                        />
+                      </div>
+                      <span id="channel-hint" class="field-hint">
+                        Нажми Enter, чтобы добавить канал вручную, или выбери его из подсказок ниже.
+                      </span>
+                    </label>
+                    <div id="channel-results" class="search-results"></div>
+                    </div>
+                  </section>
+
+                  <section class="target-section composer-card">
+                    <div class="section-heading compact">
+                      <div>
+                        <h3>Сообщение</h3>
+                        <p class="muted">Коротко и по делу. Лучше один понятный посыл на одну рассылку.</p>
+                      </div>
+                    </div>
+                    <label class="field">
+                      <span>Текст рассылки</span>
+                      <textarea
+                        id="message-input"
+                        rows="7"
+                        placeholder="Например: сервис будет недоступен с 22:00 до 22:15"
+                      ></textarea>
+                      <span id="message-hint" class="field-hint">
+                        Сообщение увидят все выбранные получатели и каналы.
+                      </span>
+                    </label>
+                  </section>
+                </div>
+
+                <aside class="panel composer-sidebar">
+                  <div class="section-heading compact">
+                    <div>
+                      <h3>План отправки</h3>
+                      <p class="muted">Быстрая проверка перед запуском рассылки.</p>
+                    </div>
+                  </div>
+                  <div class="composer-metrics">
+                    <article class="settings-overview-card">
+                      <span class="metric-label">Пользователи</span>
+                      <strong id="composer-users-count" class="metric-value">0</strong>
+                    </article>
+                    <article class="settings-overview-card">
+                      <span class="metric-label">Группы</span>
+                      <strong id="composer-groups-count" class="metric-value">0</strong>
+                    </article>
+                    <article class="settings-overview-card">
+                      <span class="metric-label">Каналы</span>
+                      <strong id="composer-channels-count" class="metric-value">0</strong>
+                    </article>
+                    <article class="settings-overview-card">
+                      <span class="metric-label">Маршрут</span>
+                      <strong id="composer-route" class="metric-value">Mattermost API</strong>
+                    </article>
+                  </div>
+                  <div class="form-actions">
+                    <button id="send-button" class="primary-button" type="button">
+                      Отправить рассылку
+                    </button>
+                    <p id="send-status" class="muted"></p>
+                  </div>
+                </aside>
+              </div>
+            </section>
+
+            <section id="view-history" class="panel view-section hidden">
+              <div class="section-heading">
+                <div>
+                  <h2>История рассылок</h2>
+                  <p class="muted">Лента отправок с результатами доставки, аудиторией и деталями по каждому запуску.</p>
+                </div>
+                <button id="history-refresh" class="ghost-button" type="button">
+                  Обновить
+                </button>
+              </div>
+              <div class="history-toolbar">
+                <label class="field history-search-field">
+                  <span>Поиск по запуску, автору, сообщению или аудитории</span>
+                  <input
+                    id="history-search"
+                    type="search"
+                    placeholder="Например: admin, #15, ops, ошибка"
+                    autocomplete="section-history one-time-code"
+                    autocapitalize="none"
+                    autocorrect="off"
+                    spellcheck="false"
+                    inputmode="search"
+                    data-1p-ignore="true"
+                    data-lpignore="true"
+                    data-form-type="other"
+                  />
+                </label>
+                <label class="field history-filter-field">
+                  <span>Статус</span>
+                  <div class="select-shell">
+                    <select id="history-status-filter">
+                      <option value="all">Все запуски</option>
+                      <option value="failed">С ошибками</option>
+                      <option value="success">Только успешные</option>
+                    </select>
+                  </div>
+                </label>
+                <label class="field history-filter-field">
+                  <span>Тип запуска</span>
+                  <div class="select-shell">
+                    <select id="history-trigger-filter">
+                      <option value="all">Все источники</option>
+                      <option value="manual">Ручные</option>
+                      <option value="inbound">Входящие</option>
+                      <option value="n8n">Только n8n</option>
+                    </select>
+                  </div>
+                </label>
+              </div>
+              <div id="history-summary" class="history-summary-strip"></div>
+              <div id="history-list" class="history-list"></div>
+            </section>
+
+            <section id="view-profile" class="panel view-section hidden">
+              <div class="section-heading">
+                <div>
+                  <h2>Настройки пользователя</h2>
+                  <p class="muted">Личные данные, параметры интерфейса и управление текущей сессией.</p>
+                </div>
+              </div>
+              <div class="profile-layout">
+                <section class="target-section profile-card">
+                  <div class="section-heading compact">
+                    <div>
+                      <h3>Профиль</h3>
+                      <p class="muted">Имя, email и данные для входа в продукт.</p>
+                    </div>
+                  </div>
+                  <form id="profile-form" class="stack">
+                    <label class="field">
+                      <span>Отображаемое имя</span>
+                      <input id="profile-display-name" type="text" />
+                      <span class="field-hint">Так имя будет показываться в интерфейсе продукта.</span>
+                    </label>
+                    <label class="field">
+                      <span>Email</span>
+                      <input id="profile-email" type="email" />
+                      <span class="field-hint">Используется для уведомлений и восстановления доступа.</span>
+                    </label>
+                    <div id="profile-password-section" class="stack">
+                      <label class="field">
+                        <span>Текущий пароль</span>
+                        <input
+                          id="profile-current-password"
+                          type="password"
+                          autocomplete="current-password"
+                        />
+                      </label>
+                      <label class="field">
+                        <span>Новый пароль</span>
+                        <input
+                          id="profile-new-password"
+                          type="password"
+                          autocomplete="new-password"
+                          placeholder="Оставь поле пустым, если пароль менять не нужно"
+                        />
+                      </label>
+                    </div>
+                    <p id="profile-auth-hint" class="muted hidden">
+                      Для этого аккаунта вход выполняется через Keycloak. Пароль управляется во внешней системе.
+                    </p>
+                    <div class="form-actions">
+                      <button class="primary-button" type="submit">Сохранить профиль</button>
+                      <p id="profile-status" class="muted"></p>
+                    </div>
+                  </form>
+                </section>
+
+                <aside class="panel profile-sidebar">
+                  <div class="section-heading compact">
+                    <div>
+                      <h3>Интерфейс</h3>
+                      <p class="muted">Персональные настройки внешнего вида и текущей сессии.</p>
+                    </div>
+                  </div>
+                  <div class="profile-actions">
+                    <button id="theme-toggle" class="ghost-button" type="button">
+                      Ночной режим
+                    </button>
+                    <button id="logout-button" class="ghost-button" type="button">
+                      Выйти
+                    </button>
+                  </div>
+                </aside>
+              </div>
+            </section>
+
+            <section id="view-admin-users" class="panel view-section hidden">
+              <div class="section-heading">
+                <div>
+                  <h2>Управление доступом</h2>
+                  <p class="muted">
+                    Роли, доступ к платформе и сопровождение внутренних аккаунтов продукта.
+                  </p>
+                </div>
+                <button id="admin-users-refresh" class="ghost-button" type="button">
+                  Обновить
+                </button>
+              </div>
+
+              <form id="create-user-form" class="admin-form-grid">
+                <label class="field">
+                  <span>Логин *</span>
+                  <input id="create-user-username" type="text" placeholder="Например: ivanov" />
+                  <span class="field-hint">Только латиница, цифры, точка, дефис или подчёркивание.</span>
+                </label>
+                <label class="field">
+                  <span>Имя *</span>
+                  <input id="create-user-display-name" type="text" placeholder="Например: Иван Иванов" />
+                </label>
+                <label class="field">
+                  <span>Email *</span>
+                  <input id="create-user-email" type="email" placeholder="Например: ivanov@company.ru" />
+                </label>
+                <label class="field">
+                  <span>Роль</span>
+                  <div class="select-shell">
+                    <select id="create-user-role">
+                      <option value="user">Пользователь</option>
+                      <option value="admin">Администратор</option>
+                    </select>
+                  </div>
+                </label>
+                <label class="field">
+                  <span>Пароль *</span>
+                  <input
+                    id="create-user-password"
+                    type="password"
+                    autocomplete="new-password"
+                    placeholder="Минимум 8 символов"
+                  />
+                  <span class="field-hint">Лучше сразу задать временный пароль и попросить сменить его после входа.</span>
+                </label>
+                <div class="admin-form-footer">
+                  <label class="field inline-field">
+                    <span>Активен</span>
+                    <input id="create-user-active" type="checkbox" checked />
+                  </label>
+                </div>
+                <div class="form-actions admin-form-actions">
+                  <button class="primary-button" type="submit">Добавить пользователя</button>
+                  <div class="form-status-block">
+                    <p class="form-hint muted">Для создания нужны логин, имя, email и пароль.</p>
+                    <p id="create-user-status" class="muted"></p>
+                  </div>
+                </div>
+              </form>
+
+              <div id="admin-users-list" class="admin-list"></div>
+            </section>
+
+            <section id="view-admin-integrations" class="panel view-section hidden">
+              <div class="section-heading">
+                <div>
+                  <h2>Интеграции</h2>
+                  <p class="muted">
+                    Подключения продукта, маршруты доставки и внешний контур корпоративной авторизации.
+                  </p>
+                </div>
+                <button id="admin-integrations-refresh" class="ghost-button" type="button">
+                  Обновить
+                </button>
+              </div>
+
+              <div id="integrations-summary" class="settings-overview-strip"></div>
+              <div id="integrations-list" class="integration-grid"></div>
+            </section>
+
+            <section id="view-admin-rules" class="panel view-section hidden">
+              <div class="section-heading">
+                <div>
+                  <h2>Правила</h2>
+                  <p class="muted">
+                    Автоматические правила для входящих событий. В MVP поддерживаются только уведомления из n8n.
+                  </p>
+                </div>
+                <button id="admin-rules-refresh" class="ghost-button" type="button">
+                  Обновить
+                </button>
+              </div>
+
+              <div id="admin-rules-summary" class="settings-overview-strip"></div>
+
+              <div class="admin-list-summary rules-guide">
+                <div class="admin-list-summary-copy">
+                  <strong>Как это работает</strong>
+                  <p>
+                    n8n отправляет событие в <code>/api/incoming/n8n</code>, а правило
+                    определяет, кому и в каком виде уйдёт сообщение. Можно использовать
+                    <code>rule_key</code> или прямых получателей в payload.
+                  </p>
+                </div>
+                <div class="admin-list-summary-copy rules-guide-code">
+                  <strong>Минимальный payload</strong>
+                  <p><code>{"rule_key":"incident-critical","message":"Падает billing","request_id":"evt-001"}</code></p>
+                </div>
+              </div>
+
+              <form id="create-rule-form" class="admin-form-grid">
+                <label class="field">
+                  <span>Название *</span>
+                  <input id="rule-name" type="text" placeholder="Например: Критичные инциденты" />
+                </label>
+                <label class="field">
+                  <span>Источник</span>
+                  <div class="select-shell">
+                    <select id="rule-source">
+                      <option value="n8n">n8n</option>
+                      <option value="alertmanager">Alertmanager / Grafana</option>
+                    </select>
+                  </div>
+                </label>
+                <label class="field">
+                  <span>Rule key</span>
+                  <input id="rule-key" type="text" placeholder="Например: incident-critical" />
+                </label>
+                <label class="field">
+                  <span>Тип события</span>
+                  <input id="rule-event-type" type="text" placeholder="Например: notification" />
+                </label>
+                <label class="field">
+                  <span>Severity</span>
+                  <input id="rule-severity" type="text" placeholder="Например: critical" />
+                </label>
+                <label class="field">
+                  <span>Фильтр по тексту</span>
+                  <input id="rule-contains-text" type="text" placeholder="Например: billing" />
+                </label>
+                <label class="field settings-field-wide">
+                  <span>Фильтры labels</span>
+                  <textarea id="rule-label-filters" rows="3" placeholder='{"service":"billing","env":"prod"}'></textarea>
+                </label>
+                <label class="field">
+                  <span>Пользователи</span>
+                  <input id="rule-users" type="text" placeholder="ivanov, petrov" />
+                </label>
+                <label class="field">
+                  <span>Группы</span>
+                  <input id="rule-groups" type="text" placeholder="oncall, devops" />
+                </label>
+                <label class="field">
+                  <span>Каналы</span>
+                  <input id="rule-channels" type="text" placeholder="alerts, ops" />
+                </label>
+                <label class="field settings-field-wide">
+                  <span>Шаблон сообщения</span>
+                  <textarea id="rule-message-template" rows="4" placeholder="Можно использовать {{title}}, {{message}}, {{severity}}"></textarea>
+                </label>
+                <div class="admin-form-footer">
+                  <label class="field inline-field">
+                    <span>Активно</span>
+                    <input id="rule-enabled" type="checkbox" checked />
+                  </label>
+                </div>
+                <div class="form-actions admin-form-actions">
+                  <button class="primary-button" type="submit">Добавить правило</button>
+                  <div class="form-status-block">
+                    <p class="form-hint muted">Сейчас правила можно использовать для входящих событий из n8n и Alertmanager.</p>
+                    <p id="create-rule-status" class="muted"></p>
+                  </div>
+                </div>
+              </form>
+
+              <div id="admin-rules-list" class="admin-list"></div>
+
+              <div class="section-heading compact admin-subsection-heading">
+                <div>
+                  <h3>Последние входящие события</h3>
+                  <p class="muted">Последние вызовы inbound API для быстрой проверки срабатываний и ошибок.</p>
+                </div>
+              </div>
+              <div id="admin-inbound-events" class="admin-list"></div>
+            </section>
+
+            <section id="view-admin-settings" class="panel view-section hidden">
+              <div class="section-heading">
+                <div>
+                  <h2>Конфигурация платформы</h2>
+                  <p class="muted">
+                    Каналы доставки, параметры продукта и интеграции с Mattermost, n8n и почтой.
+                  </p>
+                </div>
+              </div>
+
+              <form id="settings-form" class="stack">
+                <div class="settings-overview-strip">
+                  <article class="settings-overview-card">
+                    <span class="metric-label">Маршрут</span>
+                    <strong id="settings-summary-route" class="metric-value">Mattermost API</strong>
+                    <p class="muted">Основной контур доставки по умолчанию.</p>
+                  </article>
+                  <article class="settings-overview-card">
+                    <span class="metric-label">Mattermost</span>
+                    <strong id="settings-summary-mm" class="metric-value">Не настроен</strong>
+                    <p class="muted">Каталог аудитории и прямой канал отправки.</p>
+                  </article>
+                  <article class="settings-overview-card">
+                    <span class="metric-label">n8n</span>
+                    <strong id="settings-summary-n8n" class="metric-value">Отключён</strong>
+                    <p class="muted">Оркестрация маршрутов и внешней логики.</p>
+                  </article>
+                  <article class="settings-overview-card">
+                    <span class="metric-label">Почта</span>
+                    <strong id="settings-summary-email" class="metric-value">Не настроен</strong>
+                    <p class="muted">Восстановление пароля и сервисные письма.</p>
+                  </article>
+                </div>
+
+                <div class="settings-workspace">
+                  <aside class="settings-nav" aria-label="Разделы конфигурации">
+                    <button class="settings-nav-button active" type="button" data-settings-panel="product">
+                      <span class="settings-nav-title">Продукт</span>
+                      <span class="settings-nav-subtitle">Название, маршрут и каналы</span>
+                    </button>
+                    <button class="settings-nav-button" type="button" data-settings-panel="mattermost">
+                      <span class="settings-nav-title">Mattermost</span>
+                      <span class="settings-nav-subtitle">Каталог пользователей и доставка</span>
+                    </button>
+                    <button class="settings-nav-button" type="button" data-settings-panel="n8n">
+                      <span class="settings-nav-title">n8n</span>
+                      <span class="settings-nav-subtitle">Webhook и автоматизация</span>
+                    </button>
+                    <button class="settings-nav-button" type="button" data-settings-panel="email">
+                      <span class="settings-nav-title">Почта</span>
+                      <span class="settings-nav-subtitle">SMTP и публичный адрес продукта</span>
+                    </button>
+                    <button class="settings-nav-button" type="button" data-settings-panel="auth">
+                      <span class="settings-nav-title">Авторизация</span>
+                      <span class="settings-nav-subtitle">Локальный вход и Keycloak SSO</span>
+                    </button>
+                  </aside>
+
+                  <div class="settings-content">
+                    <section class="settings-panel target-section" data-settings-section="product">
+                      <div class="section-heading compact">
+                        <div>
+                          <h3>Параметры продукта</h3>
+                          <p class="muted">Бренд продукта, маршрут доставки по умолчанию и стартовые каналы.</p>
+                        </div>
+                      </div>
+                      <div class="settings-fields">
+                        <label class="field">
+                          <span>Название продукта</span>
+                          <input id="settings-app-title" type="text" />
+                        </label>
+                        <label class="field">
+                          <span>Основной маршрут доставки</span>
+                          <div class="select-shell">
+                            <select id="settings-delivery-mode">
+                              <option value="mattermost">Mattermost API</option>
+                              <option value="n8n">n8n automation</option>
+                            </select>
+                          </div>
+                        </label>
+                      </div>
+                      <label class="field">
+                        <span>Каналы по умолчанию</span>
+                        <input
+                          id="settings-default-channels"
+                          type="text"
+                          placeholder="alerts, dev, ops"
+                        />
+                      </label>
+                    </section>
+
+                    <section class="settings-panel target-section hidden" data-settings-section="mattermost">
+                      <div class="section-heading compact">
+                        <div>
+                          <h3>Mattermost</h3>
+                          <p class="muted">Настройки каталога аудитории и прямой доставки сообщений через API.</p>
+                        </div>
+                      </div>
+                      <div class="settings-fields">
+                        <label class="field">
+                          <span>Адрес сервера</span>
+                          <input id="settings-mm-base-url" type="url" />
+                        </label>
+                        <label class="field">
+                          <span>Команда Mattermost</span>
+                          <input id="settings-mm-team-name" type="text" placeholder="Например: platform" />
+                        </label>
+                        <label class="field settings-field-wide">
+                          <span>Токен бота</span>
+                          <input
+                            id="settings-mm-token"
+                            type="password"
+                            autocomplete="off"
+                            autocapitalize="none"
+                            autocorrect="off"
+                            spellcheck="false"
+                            data-1p-ignore="true"
+                            data-lpignore="true"
+                          />
+                        </label>
+                        <label class="field">
+                          <span>ID команды</span>
+                          <input id="settings-mm-team-id" type="text" placeholder="Внутренний идентификатор команды Mattermost" />
+                        </label>
+                      </div>
+                    </section>
+
+                    <section class="settings-panel target-section hidden" data-settings-section="n8n">
+                      <div class="section-heading compact">
+                        <div>
+                          <h3>n8n</h3>
+                          <p class="muted">Внешний маршрут для автоматизаций, workflow-логики и кастомной доставки.</p>
+                        </div>
+                      </div>
+                      <div class="settings-fields">
+                        <label class="field">
+                          <span>Адрес n8n</span>
+                          <input id="settings-n8n-base-url" type="url" placeholder="https://n8n.example.com" />
+                        </label>
+                        <label class="field">
+                          <span>Webhook URL</span>
+                          <input id="settings-n8n-webhook-url" type="url" placeholder="https://n8n.example.com/webhook/..." />
+                        </label>
+                        <label class="field">
+                          <span>API-ключ</span>
+                          <input
+                            id="settings-n8n-api-key"
+                            type="password"
+                            autocomplete="off"
+                            autocapitalize="none"
+                            autocorrect="off"
+                            spellcheck="false"
+                            data-1p-ignore="true"
+                            data-lpignore="true"
+                          />
+                        </label>
+                        <label class="field">
+                          <span>Секрет webhook</span>
+                          <input
+                            id="settings-n8n-webhook-secret"
+                            type="password"
+                            autocomplete="off"
+                            autocapitalize="none"
+                            autocorrect="off"
+                            spellcheck="false"
+                            data-1p-ignore="true"
+                            data-lpignore="true"
+                          />
+                        </label>
+                        <label class="field settings-field-wide">
+                          <span>Inbound secret</span>
+                          <input
+                            id="settings-n8n-inbound-secret"
+                            type="password"
+                            autocomplete="off"
+                            autocapitalize="none"
+                            autocorrect="off"
+                            spellcheck="false"
+                            data-1p-ignore="true"
+                            data-lpignore="true"
+                          />
+                          <span class="field-hint">Используется для входящих запросов из n8n в cannonball.</span>
+                        </label>
+                      </div>
+                    </section>
+
+                    <section class="settings-panel target-section hidden" data-settings-section="email">
+                      <div class="section-heading compact">
+                        <div>
+                          <h3>Почта и восстановление доступа</h3>
+                          <p class="muted">SMTP-параметры для восстановления пароля и критичных сервисных уведомлений.</p>
+                        </div>
+                      </div>
+                      <div class="settings-fields">
+                        <label class="field settings-field-wide">
+                          <span>Публичный адрес продукта</span>
+                          <input id="settings-public-base-url" type="url" placeholder="https://cannonball.example.com" />
+                        </label>
+                        <label class="field">
+                          <span>SMTP-сервер</span>
+                          <input id="settings-smtp-host" type="text" placeholder="smtp.example.com" />
+                        </label>
+                        <label class="field">
+                          <span>SMTP-порт</span>
+                          <input id="settings-smtp-port" type="number" placeholder="465" />
+                        </label>
+                        <label class="field">
+                          <span>SMTP-логин</span>
+                          <input id="settings-smtp-username" type="text" placeholder="mailer@example.com" />
+                        </label>
+                        <label class="field">
+                          <span>Имя отправителя</span>
+                          <input id="settings-smtp-from-name" type="text" placeholder="Cannonball" />
+                        </label>
+                        <label class="field">
+                          <span>Email отправителя</span>
+                          <input id="settings-smtp-from-email" type="email" placeholder="mailer@example.com" />
+                        </label>
+                        <label class="field settings-field-wide">
+                          <span>SMTP-пароль</span>
+                          <input
+                            id="settings-smtp-password"
+                            type="password"
+                            autocomplete="off"
+                            autocapitalize="none"
+                            autocorrect="off"
+                            spellcheck="false"
+                            data-1p-ignore="true"
+                            data-lpignore="true"
+                          />
+                        </label>
+                        <label class="field inline-field inline-checkbox">
+                          <span>Использовать SSL</span>
+                          <input id="settings-smtp-use-ssl" type="checkbox" />
+                        </label>
+                      </div>
+                    </section>
+
+                    <section class="settings-panel target-section hidden" data-settings-section="auth">
+                      <div class="section-heading compact">
+                        <div>
+                          <h3>Авторизация и SSO</h3>
+                          <p class="muted">Управление локальным входом и корпоративным SSO через Keycloak.</p>
+                        </div>
+                      </div>
+                      <div class="settings-fields">
+                        <label class="field">
+                          <span>Режим авторизации</span>
+                          <div class="select-shell">
+                            <select id="settings-auth-mode">
+                              <option value="local">Только локальный вход</option>
+                              <option value="hybrid">Локальный вход и Keycloak</option>
+                              <option value="keycloak">Только Keycloak</option>
+                            </select>
+                          </div>
+                        </label>
+                        <label class="field">
+                          <span>Issuer URL</span>
+                          <input id="settings-keycloak-issuer-url" type="url" placeholder="https://sso.example.com/realms/company" />
+                        </label>
+                        <label class="field">
+                          <span>Client ID</span>
+                          <input id="settings-keycloak-client-id" type="text" />
+                        </label>
+                        <label class="field">
+                          <span>Client secret</span>
+                          <input
+                            id="settings-keycloak-client-secret"
+                            type="password"
+                            autocomplete="off"
+                            autocapitalize="none"
+                            autocorrect="off"
+                            spellcheck="false"
+                            data-1p-ignore="true"
+                            data-lpignore="true"
+                          />
+                        </label>
+                        <label class="field settings-field-wide">
+                          <span>Scopes</span>
+                          <input id="settings-keycloak-scopes" type="text" placeholder="openid profile email" />
+                        </label>
+                        <label class="field">
+                          <span>Роль администратора в Keycloak</span>
+                          <input id="settings-keycloak-admin-role" type="text" placeholder="cannonball-admin" />
+                        </label>
+                      </div>
+                      <p class="muted">
+                        Для callback используется публичный адрес продукта из секции почты и восстановления доступа.
+                      </p>
+                    </section>
+                  </div>
+                </div>
+
+                <div class="form-actions settings-actions">
+                  <button class="primary-button" type="submit">Сохранить настройки</button>
+                  <p id="settings-status" class="muted"></p>
+                </div>
+              </form>
+            </section>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <script src="/polyfills.js"></script>
+    <script src="/app.js" defer></script>
+  </body>
+</html>

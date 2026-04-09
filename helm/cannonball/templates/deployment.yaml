@@ -1,0 +1,217 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "cannonball.fullname" . }}
+  labels:
+    {{- include "cannonball.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    {{- toYaml .Values.deploymentStrategy | nindent 4 }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "cannonball.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        {{- include "cannonball.labels" . | nindent 8 }}
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: cannonball
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.targetPort }}
+              protocol: TCP
+          env:
+            - name: PORT
+              value: {{ .Values.env.PORT | quote }}
+            - name: DATABASE_DRIVER
+              value: {{ .Values.env.DATABASE_DRIVER | quote }}
+            - name: DATABASE_PATH
+              value: {{ .Values.env.DATABASE_PATH | quote }}
+            - name: APP_WEB_ROOT
+              value: {{ .Values.env.APP_WEB_ROOT | quote }}
+            - name: ALLOW_INSECURE_COOKIE
+              value: {{ .Values.env.ALLOW_INSECURE_COOKIE | quote }}
+            - name: SESSION_TTL_HOURS
+              value: {{ .Values.env.SESSION_TTL_HOURS | quote }}
+            - name: APP_TITLE
+              value: {{ .Values.env.APP_TITLE | quote }}
+            - name: DELIVERY_MODE
+              value: {{ .Values.env.DELIVERY_MODE | quote }}
+            - name: AUTH_MODE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "cannonball.fullname" . }}
+                  key: AUTH_MODE
+            - name: APP_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "cannonball.fullname" . }}
+                  key: APP_USERNAME
+            - name: APP_ADMIN_DISPLAY_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "cannonball.fullname" . }}
+                  key: APP_ADMIN_DISPLAY_NAME
+            - name: APP_ADMIN_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "cannonball.fullname" . }}
+                  key: APP_ADMIN_EMAIL
+            - name: APP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "cannonball.fullname" . }}
+                  key: APP_PASSWORD
+            - name: APP_PASSWORD_HASH
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "cannonball.fullname" . }}
+                  key: APP_PASSWORD_HASH
+            - name: MATTERMOST_BASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "cannonball.fullname" . }}
+                  key: MATTERMOST_BASE_URL
+            - name: MATTERMOST_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "cannonball.fullname" . }}
+                  key: MATTERMOST_TOKEN
+            - name: MATTERMOST_TEAM_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "cannonball.fullname" . }}
+                  key: MATTERMOST_TEAM_ID
+            - name: MATTERMOST_TEAM_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "cannonball.fullname" . }}
+                  key: MATTERMOST_TEAM_NAME
+            - name: MATTERMOST_CHANNELS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "cannonball.fullname" . }}
+                  key: MATTERMOST_CHANNELS
+            - name: N8N_BASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "cannonball.fullname" . }}
+                  key: N8N_BASE_URL
+            - name: N8N_WEBHOOK_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "cannonball.fullname" . }}
+                  key: N8N_WEBHOOK_URL
+            - name: N8N_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "cannonball.fullname" . }}
+                  key: N8N_API_KEY
+            - name: N8N_WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "cannonball.fullname" . }}
+                  key: N8N_WEBHOOK_SECRET
+            - name: N8N_INBOUND_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "cannonball.fullname" . }}
+                  key: N8N_INBOUND_SECRET
+            - name: APP_BASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "cannonball.fullname" . }}
+                  key: APP_BASE_URL
+            - name: SMTP_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "cannonball.fullname" . }}
+                  key: SMTP_HOST
+            - name: SMTP_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "cannonball.fullname" . }}
+                  key: SMTP_PORT
+            - name: SMTP_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "cannonball.fullname" . }}
+                  key: SMTP_USERNAME
+            - name: SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "cannonball.fullname" . }}
+                  key: SMTP_PASSWORD
+            - name: SMTP_FROM_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "cannonball.fullname" . }}
+                  key: SMTP_FROM_EMAIL
+            - name: SMTP_FROM_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "cannonball.fullname" . }}
+                  key: SMTP_FROM_NAME
+            - name: SMTP_USE_SSL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "cannonball.fullname" . }}
+                  key: SMTP_USE_SSL
+            - name: KEYCLOAK_ISSUER_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "cannonball.fullname" . }}
+                  key: KEYCLOAK_ISSUER_URL
+            - name: KEYCLOAK_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "cannonball.fullname" . }}
+                  key: KEYCLOAK_CLIENT_ID
+            - name: KEYCLOAK_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "cannonball.fullname" . }}
+                  key: KEYCLOAK_CLIENT_SECRET
+            - name: KEYCLOAK_SCOPES
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "cannonball.fullname" . }}
+                  key: KEYCLOAK_SCOPES
+            - name: KEYCLOAK_ADMIN_ROLE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "cannonball.fullname" . }}
+                  key: KEYCLOAK_ADMIN_ROLE
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            {{- if .Values.persistence.enabled }}
+            - name: data
+              mountPath: /data
+            {{- end }}
+      volumes:
+        {{- if .Values.persistence.enabled }}
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "cannonball.fullname" . }}
+        {{- end }}
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      affinity:
+        {{- toYaml .Values.affinity | nindent 8 }}
+      tolerations:
+        {{- toYaml .Values.tolerations | nindent 8 }}

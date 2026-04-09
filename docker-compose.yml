@@ -1,0 +1,22 @@
+version: '3.9'
+
+services:
+  cannonball:
+    build:
+      context: .
+    image: cannonball:local
+    ports:
+      - '${PORT:-8080}:8080'
+    env_file:
+      - .env
+    environment:
+      DATABASE_DRIVER: sqlite
+      DATABASE_PATH: /data/cannonball.db
+      APP_WEB_ROOT: /app/web
+    volumes:
+      - cannonball_data:/data
+    restart: unless-stopped
+    stop_grace_period: 30s
+
+volumes:
+  cannonball_data:
