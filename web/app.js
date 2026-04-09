@@ -407,7 +407,14 @@ async function onLogin(event) {
   event.preventDefault();
   elements.loginError.textContent = '';
 
-  if (!elements.loginUsername.value.trim() || !elements.loginPassword.value) {
+  const formData = new FormData(elements.loginForm);
+  const username =
+    String(formData.get('username') || elements.loginUsername.value || '').trim();
+  const password = String(
+    formData.get('password') || elements.loginPassword.value || '',
+  );
+
+  if (!username || !password) {
     elements.loginError.textContent = 'Введи логин и пароль.';
     return;
   }
@@ -415,8 +422,8 @@ async function onLogin(event) {
   const response = await api('/api/login', {
     method: 'POST',
     body: JSON.stringify({
-      username: elements.loginUsername.value.trim(),
-      password: elements.loginPassword.value,
+      username: username,
+      password: password,
     }),
   });
 

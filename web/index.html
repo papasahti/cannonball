@@ -23,15 +23,27 @@
         <form id="login-form" class="stack">
           <label class="field">
             <span>Логин</span>
-            <input id="login-username" type="text" autocomplete="username" />
+            <input
+              id="login-username"
+              name="username"
+              type="text"
+              autocomplete="username"
+              autocapitalize="none"
+              autocorrect="off"
+              spellcheck="false"
+            />
           </label>
           <label class="field">
             <span>Пароль</span>
             <div class="password-field">
               <input
                 id="login-password"
+                name="password"
                 type="password"
                 autocomplete="current-password"
+                autocapitalize="none"
+                autocorrect="off"
+                spellcheck="false"
                 aria-describedby="login-error"
               />
               <button
