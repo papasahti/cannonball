@@ -47,8 +47,23 @@ docker compose up --build
 Если запуск идёт не из репозитория, а прямо через `curl`, можно использовать тот же скрипт из raw URL. Для этого нужен raw URL самого скрипта и URL архива репозитория:
 
 ```bash
-curl -fsSL https://gitlab.example.com/group/cannonball/-/raw/main/scripts/install-docker.sh | \
-  CANNONBALL_REPO_ARCHIVE_URL=https://gitlab.example.com/group/cannonball/-/archive/main/cannonball-main.tar.gz \
+curl -fsSL https://raw.githubusercontent.com/papasahti/cannonball/main/scripts/install-docker.sh | bash
+```
+
+Этой команды достаточно. Скрипт сам:
+
+- скачает текущую `main` ветку из GitHub
+- положит проект в `/opt/cannonball-docker`
+- создаст `.env`
+- сгенерирует пароль администратора
+- поднимет приложение через `docker compose`
+- сохранит базу в `/var/lib/cannonball`
+
+Если нужно, можно переопределить ветку или репозиторий:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/papasahti/cannonball/main/scripts/install-docker.sh | \
+  CANNONBALL_REPO_REF=main \
   bash
 ```
 
@@ -59,6 +74,9 @@ curl -fsSL https://gitlab.example.com/group/cannonball/-/raw/main/scripts/instal
 - `CANNONBALL_INSTALL_DIR`
 - `CANNONBALL_DATA_DIR`
 - `CANNONBALL_PUBLIC_URL`
+- `CANNONBALL_REPO_URL`
+- `CANNONBALL_REPO_REF`
+- `CANNONBALL_REPO_ARCHIVE_URL`
 
 ## Установка на Linux
 

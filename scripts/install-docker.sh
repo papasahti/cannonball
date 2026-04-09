@@ -23,6 +23,8 @@ ADMIN_NAME="${CANNONBALL_APP_ADMIN_DISPLAY_NAME:-System Administrator}"
 ADMIN_EMAIL="${CANNONBALL_APP_ADMIN_EMAIL:-admin@example.com}"
 APP_PASSWORD="${CANNONBALL_APP_PASSWORD:-}"
 REPO_ARCHIVE_URL="${CANNONBALL_REPO_ARCHIVE_URL:-}"
+REPO_URL="${CANNONBALL_REPO_URL:-https://github.com/papasahti/cannonball.git}"
+REPO_REF="${CANNONBALL_REPO_REF:-main}"
 
 TMP_DIR=""
 SOURCE_DIR=""
@@ -94,6 +96,36 @@ is_repo_root() {
   [[ -f "${candidate}/Dockerfile" && -f "${candidate}/docker-compose.yml" && -f "${candidate}/.env.example" ]]
 }
 
+normalize_repo_url() {
+  local url="$1"
+
+  url="${url%.git}"
+  url="${url%/}"
+  printf '%s\n' "${url}"
+}
+
+build_archive_url() {
+  local repo_url
+
+  repo_url="$(normalize_repo_url "$1")"
+
+  case "${repo_url}" in
+    https://github.com/*)
+      printf '%s/archive/refs/heads/%s.tar.gz\n' "${repo_url}" "${REPO_REF}"
+      ;;
+    https://gitlab.*|https://*/gitlab/*|https://gitlab.com/*)
+      printf '%s/-/archive/%s/%s-%s.tar.gz\n' \
+        "${repo_url}" \
+        "${REPO_REF}" \
+        "$(basename "${repo_url}")" \
+        "${REPO_REF}"
+      ;;
+    *)
+      fail "Не умею собирать archive URL для ${repo_url}. Задай CANNONBALL_REPO_ARCHIVE_URL вручную."
+      ;;
+  esac
+}
+
 prepare_source_dir() {
   if is_repo_root "${PWD}"; then
     SOURCE_DIR="${PWD}"
@@ -107,10 +139,12 @@ prepare_source_dir() {
     return
   fi
 
-  [[ -n "${REPO_ARCHIVE_URL}" ]] || fail "Скрипт запущен вне репозитория. Задай CANNONBALL_REPO_ARCHIVE_URL с URL архива проекта."
+  if [[ -z "${REPO_ARCHIVE_URL}" ]]; then
+    REPO_ARCHIVE_URL="$(build_archive_url "${REPO_URL}")"
+  fi
 
   TMP_DIR="$(mktemp -d)"
-  log "Скачиваю архив проекта..."
+  log "Скачиваю архив проекта из ${REPO_ARCHIVE_URL}"
   curl -fsSL "${REPO_ARCHIVE_URL}" -o "${TMP_DIR}/cannonball.tar.gz"
   mkdir -p "${TMP_DIR}/src"
   tar -xzf "${TMP_DIR}/cannonball.tar.gz" -C "${TMP_DIR}/src"
@@ -186,6 +220,8 @@ URL: ${PUBLIC_URL}
 Пароль администратора: ${APP_PASSWORD}
 Каталог установки: ${INSTALL_DIR}
 Каталог данных: ${DATA_DIR}
+Репозиторий: ${REPO_URL}
+Ветка: ${REPO_REF}
 
 Проверка:
   cd ${INSTALL_DIR} && ${COMPOSE_CMD} ps
