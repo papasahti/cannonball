@@ -30,6 +30,36 @@ docker compose up --build
 - по умолчанию используется `SQLite`
 - для первого входа нужно задать `APP_PASSWORD` или `APP_PASSWORD_HASH` в `.env`
 
+Если хочется поставить всё одной командой на Linux и сразу поднять Docker-стек, теперь есть отдельный install-скрипт:
+
+```bash
+./scripts/install-docker.sh
+```
+
+Скрипт:
+
+- создаёт `.env`, если его ещё нет
+- генерирует пароль администратора, если он не задан
+- поднимает приложение через Docker Compose
+- делает bind mount для базы на Linux-каталог
+- печатает URL, логин и пароль первого администратора
+
+Если запуск идёт не из репозитория, а прямо через `curl`, можно использовать тот же скрипт из raw URL. Для этого нужен raw URL самого скрипта и URL архива репозитория:
+
+```bash
+curl -fsSL https://gitlab.example.com/group/cannonball/-/raw/main/scripts/install-docker.sh | \
+  CANNONBALL_REPO_ARCHIVE_URL=https://gitlab.example.com/group/cannonball/-/archive/main/cannonball-main.tar.gz \
+  bash
+```
+
+Что можно переопределить:
+
+- `CANNONBALL_PORT`
+- `CANNONBALL_APP_PASSWORD`
+- `CANNONBALL_INSTALL_DIR`
+- `CANNONBALL_DATA_DIR`
+- `CANNONBALL_PUBLIC_URL`
+
 ## Установка на Linux
 
 Если Docker не нужен и приложение хочется поставить как обычный сервис:
