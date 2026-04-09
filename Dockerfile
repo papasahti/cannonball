@@ -33,8 +33,8 @@ RUN chmod +x /app/docker/entrypoint.sh
 USER cannonball
 
 ENV PORT=8080 \
-    DATABASE_DRIVER=sqlite \
-    DATABASE_PATH=/data/cannonball.db \
+    DATABASE_DRIVER=postgres \
+    DATABASE_URL=postgresql://cannonball:cannonball@postgres:5432/cannonball \
     APP_WEB_ROOT=/app/web
 
 VOLUME ["/data"]

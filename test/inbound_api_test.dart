@@ -5,6 +5,7 @@ import 'package:cannonball/src/app_server.dart';
 import 'package:cannonball/src/auth_service.dart';
 import 'package:cannonball/src/config.dart';
 import 'package:cannonball/src/database.dart';
+import 'package:cannonball/src/database_store.dart';
 import 'package:cannonball/src/settings_service.dart';
 import 'package:shelf/shelf.dart';
 import 'package:test/test.dart';
@@ -102,7 +103,7 @@ void main() {
     });
 
     test('delivers event by rule key', () async {
-      harness.database.insertInboundRule(
+      await harness.database.insertInboundRule(
         name: 'Critical incidents',
         source: 'n8n',
         ruleKey: 'incident-critical',
@@ -194,7 +195,7 @@ class _TestHarness {
   });
 
   final Directory tempDir;
-  final AppDatabase database;
+  final DatabaseStore database;
   final Handler handler;
   final String secret;
 
@@ -205,9 +206,12 @@ class _TestHarness {
     final webRoot = Directory('${tempDir.path}/web')..createSync(recursive: true);
     File('${webRoot.path}/index.html').writeAsStringSync('<!doctype html><html></html>');
 
-    final database = AppDatabase(databasePath: '${tempDir.path}/cannonball.db');
-    database.initialize();
-    database.ensureBootstrapAdmin(
+    final sqliteDatabase = AppDatabase(
+      databasePath: '${tempDir.path}/cannonball.db',
+    );
+    final database = SqliteDatabaseStore(sqliteDatabase);
+    await database.initialize();
+    await database.ensureBootstrapAdmin(
       username: 'admin',
       displayName: 'Admin',
       email: 'admin@example.com',
@@ -263,7 +267,7 @@ class _TestHarness {
       secureCookies: false,
     );
     final settingsService = SettingsService(database: database, config: config);
-    settingsService.updateFromPayload({
+    await settingsService.updateFromPayload({
       'deliveryMode': 'n8n',
       'n8nWebhookUrl': webhookUrl,
       'n8nInboundSecret': inboundSecret,
@@ -331,7 +335,7 @@ class _TestHarness {
   }
 
   Future<void> close() async {
-    database.close();
+    await database.close();
     if (tempDir.existsSync()) {
       await tempDir.delete(recursive: true);
     }

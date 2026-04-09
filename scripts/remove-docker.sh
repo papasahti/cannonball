@@ -67,7 +67,7 @@ remove_named_containers() {
 remove_named_volumes() {
   local volume_ids=""
 
-  volume_ids="$(docker volume ls -q | grep -E '(^|_)cannonball_data$|(^|_)cannonball($|_)' || true)"
+  volume_ids="$(docker volume ls -q | grep -E '(^|_)cannonball_data$|(^|_)cannonball_pg_data$|(^|_)cannonball($|_)' || true)"
   if [[ -n "${volume_ids}" ]]; then
     log "Удаляю docker volumes cannonball"
     printf '%s\n' "${volume_ids}" | while IFS= read -r volume_id; do

@@ -1,10 +1,12 @@
 import 'config.dart';
 import 'database.dart';
+import 'database_store.dart';
+import 'postgres_database_store.dart';
 
 abstract class DatabaseProviderFactory {
   String get driver;
 
-  AppDatabase open(AppConfig config);
+  DatabaseStore open(AppConfig config);
 }
 
 class SqliteDatabaseProviderFactory implements DatabaseProviderFactory {
@@ -12,12 +14,30 @@ class SqliteDatabaseProviderFactory implements DatabaseProviderFactory {
   String get driver => 'sqlite';
 
   @override
-  AppDatabase open(AppConfig config) {
-    return AppDatabase(
-      databasePath: config.databasePath,
-      driver: driver,
-      connectionTarget: config.databaseUrl ?? config.databasePath,
+  DatabaseStore open(AppConfig config) {
+    return SqliteDatabaseStore(
+      AppDatabase(
+        databasePath: config.databasePath,
+        driver: driver,
+        connectionTarget: config.databaseUrl ?? config.databasePath,
+      ),
     );
+  }
+}
+
+class PostgresDatabaseProviderFactory implements DatabaseProviderFactory {
+  @override
+  String get driver => 'postgres';
+
+  @override
+  DatabaseStore open(AppConfig config) {
+    final databaseUrl = config.databaseUrl?.trim();
+    if (databaseUrl == null || databaseUrl.isEmpty) {
+      throw StateError(
+        'DATABASE_URL must be provided when DATABASE_DRIVER=postgres.',
+      );
+    }
+    return PostgresDatabaseStore(connectionUrl: databaseUrl);
   }
 }
 
@@ -32,13 +52,18 @@ class UnsupportedDatabaseDriverError extends StateError {
 class DatabaseFactoryRegistry {
   DatabaseFactoryRegistry({List<DatabaseProviderFactory>? providers})
     : _providers = {
-        for (final provider in providers ?? [SqliteDatabaseProviderFactory()])
+        for (final provider in
+            providers ??
+                [
+                  SqliteDatabaseProviderFactory(),
+                  PostgresDatabaseProviderFactory(),
+                ])
           provider.driver: provider,
       };
 
   final Map<String, DatabaseProviderFactory> _providers;
 
-  AppDatabase open(AppConfig config) {
+  DatabaseStore open(AppConfig config) {
     final provider = _providers[config.databaseDriver];
     if (provider == null) {
       throw UnsupportedDatabaseDriverError(config.databaseDriver);

@@ -1,17 +1,17 @@
 import 'dart:async';
 
-import 'database.dart';
+import 'database_store.dart';
 import 'settings_service.dart';
 
 class MattermostDirectorySyncService {
   MattermostDirectorySyncService({
-    required AppDatabase database,
+    required DatabaseStore database,
     required SettingsService settingsService,
     this.interval = const Duration(minutes: 15),
   }) : _database = database,
        _settingsService = settingsService;
 
-  final AppDatabase _database;
+  final DatabaseStore _database;
   final SettingsService _settingsService;
   final Duration interval;
 
@@ -30,7 +30,7 @@ class MattermostDirectorySyncService {
       return;
     }
 
-    final settings = _settingsService.load();
+    final settings = await _settingsService.load();
     if (!settings.isMattermostConfigured) {
       return;
     }
@@ -42,7 +42,7 @@ class MattermostDirectorySyncService {
       final groups = await client.listGroups();
       final channels = await client.listDirectoryChannels();
 
-      _database.replaceMattermostDirectoryUsers(
+      await _database.replaceMattermostDirectoryUsers(
         users
             .map((user) => {
                   'id': user.id,
@@ -54,7 +54,7 @@ class MattermostDirectorySyncService {
                 })
             .toList(growable: false),
       );
-      _database.replaceMattermostDirectoryGroups(
+      await _database.replaceMattermostDirectoryGroups(
         groups
             .map((group) => {
                   'id': group.id,
@@ -64,7 +64,7 @@ class MattermostDirectorySyncService {
                 })
             .toList(growable: false),
       );
-      _database.replaceMattermostDirectoryChannels(
+      await _database.replaceMattermostDirectoryChannels(
         channels
             .map((channel) => {
                   'id': channel.id,

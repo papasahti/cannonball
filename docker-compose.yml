@@ -7,16 +7,32 @@ services:
     image: cannonball:local
     ports:
       - '${PORT:-8080}:8080'
+    depends_on:
+      postgres:
+        condition: service_healthy
     env_file:
       - .env
     environment:
-      DATABASE_DRIVER: sqlite
-      DATABASE_PATH: /data/cannonball.db
+      DATABASE_DRIVER: ${DATABASE_DRIVER:-postgres}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://cannonball:cannonball@postgres:5432/cannonball}
       APP_WEB_ROOT: /app/web
-    volumes:
-      - cannonball_data:/data
     restart: unless-stopped
     stop_grace_period: 30s
 
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-cannonball}
+      POSTGRES_USER: ${POSTGRES_USER:-cannonball}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cannonball}
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - cannonball_pg_data:/var/lib/postgresql/data
+
 volumes:
-  cannonball_data:
+  cannonball_pg_data:

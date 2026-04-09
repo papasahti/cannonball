@@ -1,5 +1,5 @@
 import 'config.dart';
-import 'database.dart';
+import 'database_store.dart';
 import 'mattermost_client.dart';
 
 class AppSettings {
@@ -125,15 +125,15 @@ class AppSettings {
 }
 
 class SettingsService {
-  SettingsService({required AppDatabase database, required AppConfig config})
+  SettingsService({required DatabaseStore database, required AppConfig config})
     : _database = database,
       _config = config;
 
-  final AppDatabase _database;
+  final DatabaseStore _database;
   final AppConfig _config;
 
-  AppSettings load() {
-    final stored = _database.getSettings();
+  Future<AppSettings> load() async {
+    final stored = await _database.getSettings();
 
     String getValue(String key, String? fallback) {
       final storedValue = stored[key];
@@ -222,7 +222,7 @@ class SettingsService {
     );
   }
 
-  void updateFromPayload(Map<String, Object?> payload) {
+  Future<void> updateFromPayload(Map<String, Object?> payload) async {
     final defaultChannels =
         ((payload['defaultChannels'] as List<dynamic>?) ?? const [])
             .map((item) => item.toString().trim().replaceFirst('#', ''))
@@ -230,7 +230,7 @@ class SettingsService {
             .toSet()
             .toList(growable: false);
 
-    _database.upsertSettings({
+    await _database.upsertSettings({
       'app.title': (payload['appTitle'] as String? ?? '').trim(),
       'delivery.mode': (payload['deliveryMode'] as String? ?? '').trim(),
       'mattermost.baseUrl': (payload['mattermostBaseUrl'] as String? ?? '')

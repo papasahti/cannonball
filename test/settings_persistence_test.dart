@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:cannonball/src/config.dart';
 import 'package:cannonball/src/database.dart';
+import 'package:cannonball/src/database_store.dart';
 import 'package:cannonball/src/settings_service.dart';
 import 'package:test/test.dart';
 
@@ -16,14 +17,15 @@ void main() {
 
     final databasePath = '${tempDir.path}/cannonball.db';
     final firstDatabase = AppDatabase(databasePath: databasePath);
-    firstDatabase.initialize();
+    final firstStore = SqliteDatabaseStore(firstDatabase);
+    await firstStore.initialize();
 
     final firstService = SettingsService(
-      database: firstDatabase,
+      database: firstStore,
       config: _testConfig(databasePath: databasePath),
     );
 
-    firstService.updateFromPayload({
+    await firstService.updateFromPayload({
       'appTitle': 'cannonball',
       'deliveryMode': 'n8n',
       'defaultChannels': ['alerts', 'ops'],
@@ -52,17 +54,18 @@ void main() {
       'keycloakAdminRole': 'cannonball-admin',
     });
 
-    firstDatabase.close();
+    await firstStore.close();
 
     final secondDatabase = AppDatabase(databasePath: databasePath);
-    secondDatabase.initialize();
-    addTearDown(secondDatabase.close);
+    final secondStore = SqliteDatabaseStore(secondDatabase);
+    await secondStore.initialize();
+    addTearDown(secondStore.close);
 
     final secondService = SettingsService(
-      database: secondDatabase,
+      database: secondStore,
       config: _testConfig(databasePath: databasePath),
     );
-    final settings = secondService.load();
+    final settings = await secondService.load();
 
     expect(settings.deliveryMode, 'n8n');
     expect(settings.defaultChannels, ['alerts', 'ops']);

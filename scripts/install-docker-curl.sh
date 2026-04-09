@@ -21,6 +21,9 @@ ADMIN_LOGIN="${CANNONBALL_APP_USERNAME:-admin}"
 ADMIN_NAME="${CANNONBALL_APP_ADMIN_DISPLAY_NAME:-System Administrator}"
 ADMIN_EMAIL="${CANNONBALL_APP_ADMIN_EMAIL:-admin@example.com}"
 APP_PASSWORD="${CANNONBALL_APP_PASSWORD:-adminadmin}"
+POSTGRES_DB="${CANNONBALL_POSTGRES_DB:-cannonball}"
+POSTGRES_USER="${CANNONBALL_POSTGRES_USER:-cannonball}"
+POSTGRES_PASSWORD="${CANNONBALL_POSTGRES_PASSWORD:-cannonball}"
 
 TMP_DIR=""
 SOURCE_DIR=""
@@ -158,8 +161,11 @@ install_source() {
 write_default_env() {
   cat >"${INSTALL_DIR}/.env" <<EOF
 PORT=${PORT_VALUE}
-DATABASE_DRIVER=sqlite
-DATABASE_PATH=/data/cannonball.db
+DATABASE_DRIVER=postgres
+DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+POSTGRES_DB=${POSTGRES_DB}
+POSTGRES_USER=${POSTGRES_USER}
+POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
 APP_WEB_ROOT=/app/web
 APP_USERNAME=${ADMIN_LOGIN}
 APP_ADMIN_DISPLAY_NAME=${ADMIN_NAME}
@@ -214,8 +220,11 @@ prepare_runtime_files() {
   fi
 
   set_env_value "${INSTALL_DIR}/.env" "PORT" "${PORT_VALUE}"
-  set_env_value "${INSTALL_DIR}/.env" "DATABASE_DRIVER" "sqlite"
-  set_env_value "${INSTALL_DIR}/.env" "DATABASE_PATH" "/data/cannonball.db"
+  set_env_value "${INSTALL_DIR}/.env" "DATABASE_DRIVER" "postgres"
+  set_env_value "${INSTALL_DIR}/.env" "DATABASE_URL" "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}"
+  set_env_value "${INSTALL_DIR}/.env" "POSTGRES_DB" "${POSTGRES_DB}"
+  set_env_value "${INSTALL_DIR}/.env" "POSTGRES_USER" "${POSTGRES_USER}"
+  set_env_value "${INSTALL_DIR}/.env" "POSTGRES_PASSWORD" "${POSTGRES_PASSWORD}"
   set_env_value "${INSTALL_DIR}/.env" "APP_WEB_ROOT" "/app/web"
   set_env_value "${INSTALL_DIR}/.env" "APP_USERNAME" "${ADMIN_LOGIN}"
   set_env_value "${INSTALL_DIR}/.env" "APP_ADMIN_DISPLAY_NAME" "${ADMIN_NAME}"
@@ -227,8 +236,12 @@ prepare_runtime_files() {
   cat >"${INSTALL_DIR}/docker-compose.override.yml" <<EOF
 services:
   cannonball:
+    environment:
+      DATABASE_DRIVER: postgres
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+  postgres:
     volumes:
-      - ${DATA_DIR}:/data
+      - ${DATA_DIR}:/var/lib/postgresql/data
 EOF
 }
 

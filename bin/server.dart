@@ -11,7 +11,7 @@ Future<void> main() async {
 
   Future<void> shutdown() async {
     await server.close(force: false);
-    app.close();
+    await app.close();
   }
 
   ProcessSignal.sigterm.watch().listen((_) async {

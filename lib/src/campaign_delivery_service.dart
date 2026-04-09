@@ -1,5 +1,5 @@
 import 'auth_service.dart';
-import 'database.dart';
+import 'database_store.dart';
 import 'delivery_router.dart';
 import 'integration_registry.dart';
 import 'messaging_platform.dart';
@@ -37,7 +37,7 @@ class CampaignDeliveryService {
     required this.registry,
   });
 
-  final AppDatabase database;
+  final DatabaseStore database;
   final IntegrationRegistry registry;
 
   Future<CampaignDeliveryOutcome> sendCampaign({
@@ -54,7 +54,7 @@ class CampaignDeliveryService {
       rawChannels: rawChannels,
     );
 
-    final campaignId = database.insertCampaign(
+    final campaignId = await database.insertCampaign(
       createdAt: DateTime.now(),
       createdBy: sender.username,
       message: message,
@@ -138,7 +138,7 @@ class CampaignDeliveryService {
       failedCount += result.failedDelta;
     }
 
-    database.updateCampaignSummary(
+    await database.updateCampaignSummary(
       campaignId: campaignId,
       sentCount: sentCount,
       failedCount: failedCount,
@@ -171,7 +171,7 @@ class CampaignDeliveryService {
         message: message,
       );
       final mergedResponse = {...responseExtras, ...responsePayload};
-      database.insertDelivery(
+      await database.insertDelivery(
         campaignId: campaignId,
         targetType: deliveryTypeOverride ?? target.type,
         targetKey: deliveryKeyOverride ?? target.key,
@@ -191,7 +191,7 @@ class CampaignDeliveryService {
         },
       );
     } on MessagingPlatformException catch (error) {
-      database.insertDelivery(
+      await database.insertDelivery(
         campaignId: campaignId,
         targetType: deliveryTypeOverride ?? target.type,
         targetKey: deliveryKeyOverride ?? target.key,
@@ -216,7 +216,7 @@ class CampaignDeliveryService {
         },
       );
     } on DeliveryRouterException catch (error) {
-      database.insertDelivery(
+      await database.insertDelivery(
         campaignId: campaignId,
         targetType: deliveryTypeOverride ?? target.type,
         targetKey: deliveryKeyOverride ?? target.key,
@@ -241,7 +241,7 @@ class CampaignDeliveryService {
         },
       );
     } catch (error) {
-      database.insertDelivery(
+      await database.insertDelivery(
         campaignId: campaignId,
         targetType: deliveryTypeOverride ?? target.type,
         targetKey: deliveryKeyOverride ?? target.key,

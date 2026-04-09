@@ -3,7 +3,7 @@ import 'dart:math';
 
 import 'package:crypto/crypto.dart';
 
-import 'database.dart';
+import 'database_store.dart';
 
 class AuthenticatedUser {
   AuthenticatedUser({
@@ -39,21 +39,21 @@ class AuthenticatedUser {
 
 class AuthService {
   AuthService({
-    required AppDatabase database,
+    required DatabaseStore database,
     required this.sessionTtl,
     required this.secureCookies,
   }) : _database = database;
 
-  final AppDatabase _database;
+  final DatabaseStore _database;
   final Duration sessionTtl;
   final bool secureCookies;
   final Duration passwordResetTtl = const Duration(hours: 1);
 
-  AuthenticatedUser? authenticate({
+  Future<AuthenticatedUser?> authenticate({
     required String username,
     required String rawPassword,
-  }) {
-    final user = _database.getUserByUsername(username);
+  }) async {
+    final user = await _database.getUserByUsername(username);
     if (user == null) {
       return null;
     }
@@ -67,11 +67,11 @@ class AuthService {
     return _mapUser(user);
   }
 
-  String createSession(AuthenticatedUser user) {
+  Future<String> createSession(AuthenticatedUser user) async {
     final now = DateTime.now().toUtc();
-    _database.purgeExpiredSessions(now);
+    await _database.purgeExpiredSessions(now);
     final token = _randomToken();
-    _database.insertSession(
+    await _database.insertSession(
       token: token,
       userId: user.id,
       createdAt: now,
@@ -80,15 +80,15 @@ class AuthService {
     return token;
   }
 
-  AuthenticatedUser? synchronizeExternalUser({
+  Future<AuthenticatedUser?> synchronizeExternalUser({
     required String authProvider,
     required String externalSubject,
     required String username,
     required String displayName,
     required String email,
     required bool isAdmin,
-  }) {
-    final existingExternal = _database.getUserByExternalIdentity(
+  }) async {
+    final existingExternal = await _database.getUserByExternalIdentity(
       authProvider: authProvider,
       externalSubject: externalSubject,
     );
@@ -96,43 +96,47 @@ class AuthService {
       if (existingExternal['isActive'] != true) {
         return null;
       }
-      _database.updateUser(
+      await _database.updateUser(
         id: existingExternal['id'] as int,
         displayName: displayName,
         email: email,
         role: isAdmin ? 'admin' : (existingExternal['role'] as String),
         isActive: existingExternal['isActive'] as bool,
       );
-      return _mapUser(_database.getUserById(existingExternal['id'] as int)!);
+      return _mapUser(
+        (await _database.getUserById(existingExternal['id'] as int))!,
+      );
     }
 
     Map<String, Object?>? userToLink;
     if (email.isNotEmpty) {
-      userToLink = _database.getUserByEmail(email);
+      userToLink = await _database.getUserByEmail(email);
     }
-    userToLink ??= _database.getUserByUsername(username);
+    userToLink ??= await _database.getUserByUsername(username);
 
     if (userToLink != null) {
       if (userToLink['isActive'] != true) {
         return null;
       }
-      _database.linkExternalIdentity(
+      await _database.linkExternalIdentity(
         id: userToLink['id'] as int,
         authProvider: authProvider,
         externalSubject: externalSubject,
       );
-      _database.updateUser(
+      await _database.updateUser(
         id: userToLink['id'] as int,
         displayName: displayName,
         email: email,
         role: isAdmin ? 'admin' : (userToLink['role'] as String),
         isActive: userToLink['isActive'] as bool,
       );
-      return _mapUser(_database.getUserById(userToLink['id'] as int)!);
+      return _mapUser(
+        (await _database.getUserById(userToLink['id'] as int))!,
+      );
     }
 
-    final normalizedUsername = _buildUniqueUsername(username);
-    final id = _database.createUser(
+    final normalizedUsername = await _buildUniqueUsername(username);
+    final id = await _database.createUser(
       username: normalizedUsername,
       displayName: displayName,
       email: email,
@@ -142,34 +146,34 @@ class AuthService {
       authProvider: authProvider,
       externalSubject: externalSubject,
     );
-    return _mapUser(_database.getUserById(id)!);
+    return _mapUser((await _database.getUserById(id))!);
   }
 
-  AuthenticatedUser? resolveSession(String? cookieToken) {
+  Future<AuthenticatedUser?> resolveSession(String? cookieToken) async {
     if (cookieToken == null || cookieToken.isEmpty) {
       return null;
     }
     final now = DateTime.now().toUtc();
-    _database.purgeExpiredSessions(now);
-    final session = _database.getSession(cookieToken);
+    await _database.purgeExpiredSessions(now);
+    final session = await _database.getSession(cookieToken);
     if (session == null) {
       return null;
     }
     final expiresAt = DateTime.parse(session['expires_at'] as String).toUtc();
     if (!expiresAt.isAfter(now)) {
-      _database.deleteSession(cookieToken);
+      await _database.deleteSession(cookieToken);
       return null;
     }
-    final user = _database.getUserById(session['user_id'] as int);
+    final user = await _database.getUserById(session['user_id'] as int);
     if (user == null || user['isActive'] != true) {
-      _database.deleteSession(cookieToken);
+      await _database.deleteSession(cookieToken);
       return null;
     }
     return _mapUser(user);
   }
 
-  void deleteSession(String token) {
-    _database.deleteSession(token);
+  Future<void> deleteSession(String token) async {
+    await _database.deleteSession(token);
   }
 
   String buildSessionCookie(String token) {
@@ -218,11 +222,11 @@ class AuthService {
     return sha256.convert(utf8.encode(rawPassword)).toString();
   }
 
-  String createPasswordResetToken(int userId) {
+  Future<String> createPasswordResetToken(int userId) async {
     final now = DateTime.now().toUtc();
-    _database.purgeExpiredPasswordResetTokens(now);
+    await _database.purgeExpiredPasswordResetTokens(now);
     final token = _randomToken();
-    _database.insertPasswordResetToken(
+    await _database.insertPasswordResetToken(
       token: token,
       userId: userId,
       createdAt: now,
@@ -231,10 +235,10 @@ class AuthService {
     return token;
   }
 
-  AuthenticatedUser? resolvePasswordResetToken(String token) {
+  Future<AuthenticatedUser?> resolvePasswordResetToken(String token) async {
     final now = DateTime.now().toUtc();
-    _database.purgeExpiredPasswordResetTokens(now);
-    final resetToken = _database.getPasswordResetToken(token);
+    await _database.purgeExpiredPasswordResetTokens(now);
+    final resetToken = await _database.getPasswordResetToken(token);
     if (resetToken == null) {
       return null;
     }
@@ -245,28 +249,28 @@ class AuthService {
     if (!expiresAt.isAfter(now)) {
       return null;
     }
-    final user = _database.getUserById(resetToken['userId'] as int);
+    final user = await _database.getUserById(resetToken['userId'] as int);
     if (user == null || user['isActive'] != true) {
       return null;
     }
     return _mapUser(user);
   }
 
-  bool consumePasswordResetToken({
+  Future<bool> consumePasswordResetToken({
     required String token,
     required String newPassword,
-  }) {
-    final user = resolvePasswordResetToken(token);
+  }) async {
+    final user = await resolvePasswordResetToken(token);
     if (user == null) {
       return false;
     }
-    _database.updateOwnProfile(
+    await _database.updateOwnProfile(
       id: user.id,
       displayName: user.displayName,
       email: user.email,
       passwordHash: hashPassword(newPassword),
     );
-    _database.markPasswordResetTokenUsed(token);
+    await _database.markPasswordResetTokenUsed(token);
     return true;
   }
 
@@ -284,11 +288,11 @@ class AuthService {
 
   String generateOpaqueToken() => _randomToken();
 
-  String _buildUniqueUsername(String preferredUsername) {
+  Future<String> _buildUniqueUsername(String preferredUsername) async {
     final base = preferredUsername.trim().toLowerCase().replaceAll(' ', '.');
     var candidate = base.isEmpty ? 'user' : base;
     var suffix = 1;
-    while (_database.getUserByUsername(candidate) != null) {
+    while (await _database.getUserByUsername(candidate) != null) {
       candidate = '${base.isEmpty ? 'user' : base}.$suffix';
       suffix += 1;
     }

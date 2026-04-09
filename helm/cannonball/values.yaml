@@ -27,7 +27,7 @@ ingress:
 resources: {}
 
 persistence:
-  enabled: true
+  enabled: false
   accessModes:
     - ReadWriteOnce
   size: 1Gi
@@ -35,14 +35,16 @@ persistence:
 
 env:
   PORT: "8080"
-  DATABASE_DRIVER: sqlite
-  DATABASE_PATH: /data/cannonball.db
+  DATABASE_DRIVER: postgres
+  DATABASE_PATH: ""
+  DATABASE_URL: postgresql://cannonball:cannonball@postgres:5432/cannonball
   APP_WEB_ROOT: /app/web
   APP_USERNAME: admin
   APP_ADMIN_DISPLAY_NAME: System Administrator
   APP_ADMIN_EMAIL: admin@example.com
   APP_PASSWORD: change-me
   APP_PASSWORD_HASH: ""
+  APP_FORCE_BOOTSTRAP_PASSWORD_SYNC: "true"
   ALLOW_INSECURE_COOKIE: "false"
   SESSION_TTL_HOURS: "12"
   APP_TITLE: cannonball

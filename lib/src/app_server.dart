@@ -9,18 +9,18 @@ import 'audience_service.dart';
 import 'auth_service.dart';
 import 'campaign_delivery_service.dart';
 import 'config.dart';
-import 'database.dart';
+import 'database_store.dart';
 import 'delivery_router.dart';
-import 'keycloak_service.dart';
 import 'email_service.dart';
 import 'inbound_notifications.dart';
 import 'integration_registry.dart';
+import 'keycloak_service.dart';
 import 'messaging_platform.dart';
 import 'settings_service.dart';
 
 Handler createHandler({
   required AppConfig config,
-  required AppDatabase database,
+  required DatabaseStore database,
   required AuthService authService,
   required SettingsService settingsService,
   required Directory webRoot,
@@ -49,8 +49,8 @@ Handler createHandler({
     return _jsonResponse(HttpStatus.ok, {'ok': true, 'service': 'cannonball'});
   });
 
-  router.get('/api/public-config', (Request request) {
-    final settings = settingsService.load();
+  router.get('/api/public-config', (Request request) async {
+    final settings = await settingsService.load();
     return _jsonResponse(HttpStatus.ok, {
       'ok': true,
       'settings': _buildSettingsPayload(
@@ -61,7 +61,7 @@ Handler createHandler({
   });
 
   router.post('/api/login', (Request request) async {
-    final settings = settingsService.load();
+    final settings = await settingsService.load();
     if (!settings.isLocalAuthEnabled) {
       return _jsonResponse(HttpStatus.forbidden, {
         'ok': false,
@@ -71,7 +71,7 @@ Handler createHandler({
     final payload = await _readJsonBody(request);
     final username = (payload['username'] as String? ?? '').trim();
     final password = (payload['password'] as String? ?? '').trim();
-    final user = authService.authenticate(
+    final user = await authService.authenticate(
       username: username,
       rawPassword: password,
     );
@@ -82,7 +82,7 @@ Handler createHandler({
       });
     }
 
-    final token = authService.createSession(user);
+    final token = await authService.createSession(user);
     return _jsonResponse(
       HttpStatus.ok,
       {'ok': true, 'user': user.toJson()},
@@ -92,12 +92,12 @@ Handler createHandler({
     );
   });
 
-  router.post('/api/logout', (Request request) {
+  router.post('/api/logout', (Request request) async {
     final token = authService.readSessionToken(
       request.headers[HttpHeaders.cookieHeader],
     );
     if (token != null) {
-      authService.deleteSession(token);
+      await authService.deleteSession(token);
     }
     return _jsonResponse(
       HttpStatus.ok,
@@ -109,7 +109,7 @@ Handler createHandler({
   });
 
   router.get('/api/auth/keycloak/start', (Request request) async {
-    final settings = settingsService.load();
+    final settings = await settingsService.load();
     if (!settings.isKeycloakAuthEnabled) {
       return _jsonResponse(HttpStatus.badRequest, {
         'ok': false,
@@ -147,7 +147,7 @@ Handler createHandler({
   });
 
   router.get('/api/auth/keycloak/callback', (Request request) async {
-    final settings = settingsService.load();
+    final settings = await settingsService.load();
     final code = request.requestedUri.queryParameters['code'] ?? '';
     final state = request.requestedUri.queryParameters['state'] ?? '';
     final error = request.requestedUri.queryParameters['error'];
@@ -183,7 +183,7 @@ Handler createHandler({
         code: code,
       );
       final profile = authResult.profile;
-      final user = authService.synchronizeExternalUser(
+      final user = await authService.synchronizeExternalUser(
         authProvider: 'keycloak',
         externalSubject: profile.subject,
         username: profile.username,
@@ -202,7 +202,7 @@ Handler createHandler({
           },
         );
       }
-      final token = authService.createSession(user);
+      final token = await authService.createSession(user);
       return Response.found(
         '/',
         headers: {
@@ -225,7 +225,7 @@ Handler createHandler({
   router.post('/api/password/forgot', (Request request) async {
     final payload = await _readJsonBody(request);
     final login = (payload['login'] as String? ?? '').trim();
-    final settings = settingsService.load();
+    final settings = await settingsService.load();
     if (!settings.isLocalAuthEnabled) {
       return _jsonResponse(HttpStatus.badRequest, {
         'ok': false,
@@ -240,11 +240,11 @@ Handler createHandler({
       });
     }
 
-    final user = _findUserForPasswordReset(database, login);
+    final user = await _findUserForPasswordReset(database, login);
     if (user != null &&
         (user['email'] as String?)?.isNotEmpty == true &&
         settings.isEmailConfigured) {
-      final token = authService.createPasswordResetToken(user['id'] as int);
+      final token = await authService.createPasswordResetToken(user['id'] as int);
       final resetLink = _buildPasswordResetLink(
         request: request,
         settings: settings,
@@ -269,7 +269,7 @@ Handler createHandler({
     final payload = await _readJsonBody(request);
     final token = (payload['token'] as String? ?? '').trim();
     final newPassword = (payload['newPassword'] as String? ?? '').trim();
-    final settings = settingsService.load();
+    final settings = await settingsService.load();
     if (!settings.isLocalAuthEnabled) {
       return _jsonResponse(HttpStatus.badRequest, {
         'ok': false,
@@ -288,7 +288,7 @@ Handler createHandler({
         'error': 'Новый пароль должен быть не короче 8 символов.',
       });
     }
-    final success = authService.consumePasswordResetToken(
+    final success = await authService.consumePasswordResetToken(
       token: token,
       newPassword: newPassword,
     );
@@ -304,8 +304,8 @@ Handler createHandler({
     });
   });
 
-  router.get('/api/password/reset/<token>', (Request request, String token) {
-    final user = authService.resolvePasswordResetToken(token);
+  router.get('/api/password/reset/<token>', (Request request, String token) async {
+    final user = await authService.resolvePasswordResetToken(token);
     if (user == null) {
       return _jsonResponse(HttpStatus.notFound, {
         'ok': false,
@@ -320,8 +320,8 @@ Handler createHandler({
     });
   });
 
-  router.get('/api/me', (Request request) {
-    final user = _requireUser(request, authService);
+  router.get('/api/me', (Request request) async {
+    final user = await _requireUser(request, authService);
     if (user == null) {
       return _jsonResponse(HttpStatus.unauthorized, {
         'ok': false,
@@ -336,8 +336,8 @@ Handler createHandler({
     });
   });
 
-  router.get('/api/config', (Request request) {
-    final user = _requireUser(request, authService);
+  router.get('/api/config', (Request request) async {
+    final user = await _requireUser(request, authService);
     if (user == null) {
       return _jsonResponse(HttpStatus.unauthorized, {
         'ok': false,
@@ -345,7 +345,7 @@ Handler createHandler({
       });
     }
 
-    final settings = settingsService.load();
+    final settings = await settingsService.load();
     return _jsonResponse(HttpStatus.ok, {
       'ok': true,
       'user': user.toJson(),
@@ -356,15 +356,15 @@ Handler createHandler({
     });
   });
 
-  router.get('/api/integrations', (Request request) {
-    if (_requireUser(request, authService) == null) {
+  router.get('/api/integrations', (Request request) async {
+    if (await _requireUser(request, authService) == null) {
       return _jsonResponse(HttpStatus.unauthorized, {
         'ok': false,
         'error': 'Нужна авторизация.',
       });
     }
 
-    final settings = settingsService.load();
+    final settings = await settingsService.load();
     return _jsonResponse(HttpStatus.ok, {
       'ok': true,
       'items': integrationRegistry
@@ -379,7 +379,7 @@ Handler createHandler({
   });
 
   router.patch('/api/profile', (Request request) async {
-    final user = _requireUser(request, authService);
+    final user = await _requireUser(request, authService);
     if (user == null) {
       return _jsonResponse(HttpStatus.unauthorized, {
         'ok': false,
@@ -415,7 +415,7 @@ Handler createHandler({
           'error': 'Новый пароль должен быть не короче 8 символов.',
         });
       }
-      final verified = authService.authenticate(
+      final verified = await authService.authenticate(
         username: user.username,
         rawPassword: currentPassword,
       );
@@ -428,21 +428,21 @@ Handler createHandler({
       passwordHash = AuthService.hashPassword(newPassword);
     }
 
-    database.updateOwnProfile(
+    await database.updateOwnProfile(
       id: user.id,
       displayName: displayName,
       email: email,
       passwordHash: passwordHash,
     );
-    final updatedUser = database.getUserById(user.id)!;
+    final updatedUser = await database.getUserById(user.id);
     return _jsonResponse(HttpStatus.ok, {
       'ok': true,
-      'user': _sanitizeUserMap(updatedUser),
+      'user': _sanitizeUserMap(updatedUser!),
     });
   });
 
   router.get('/api/users', (Request request) async {
-    if (_requireUser(request, authService) == null) {
+    if (await _requireUser(request, authService) == null) {
       return _jsonResponse(HttpStatus.unauthorized, {
         'ok': false,
         'error': 'Нужна авторизация.',
@@ -450,7 +450,7 @@ Handler createHandler({
     }
 
     final query = request.requestedUri.queryParameters['query'] ?? '';
-    final settings = settingsService.load();
+    final settings = await settingsService.load();
     try {
       final users = await audienceService.searchUsers(
         settings: settings,
@@ -470,7 +470,7 @@ Handler createHandler({
   });
 
   router.get('/api/audience', (Request request) async {
-    if (_requireUser(request, authService) == null) {
+    if (await _requireUser(request, authService) == null) {
       return _jsonResponse(HttpStatus.unauthorized, {
         'ok': false,
         'error': 'Нужна авторизация.',
@@ -478,7 +478,7 @@ Handler createHandler({
     }
 
     final query = request.requestedUri.queryParameters['query'] ?? '';
-    final settings = settingsService.load();
+    final settings = await settingsService.load();
     try {
       final items = await audienceService.searchAudience(
         settings: settings,
@@ -498,7 +498,7 @@ Handler createHandler({
   });
 
   router.get('/api/channels', (Request request) async {
-    if (_requireUser(request, authService) == null) {
+    if (await _requireUser(request, authService) == null) {
       return _jsonResponse(HttpStatus.unauthorized, {
         'ok': false,
         'error': 'Нужна авторизация.',
@@ -506,7 +506,7 @@ Handler createHandler({
     }
 
     final query = request.requestedUri.queryParameters['query'] ?? '';
-    final settings = settingsService.load();
+    final settings = await settingsService.load();
     try {
       final channels = await audienceService.searchChannels(
         settings: settings,
@@ -525,8 +525,8 @@ Handler createHandler({
     }
   });
 
-  router.get('/api/history', (Request request) {
-    final user = _requireUser(request, authService);
+  router.get('/api/history', (Request request) async {
+    final user = await _requireUser(request, authService);
     if (user == null) {
       return _jsonResponse(HttpStatus.unauthorized, {
         'ok': false,
@@ -536,7 +536,7 @@ Handler createHandler({
 
     final limit =
         int.tryParse(request.requestedUri.queryParameters['limit'] ?? '') ?? 20;
-    final items = database.listCampaigns(
+    final items = await database.listCampaigns(
       limit: limit.clamp(1, 100),
       createdBy: user.isAdmin ? null : user.username,
     );
@@ -544,7 +544,7 @@ Handler createHandler({
   });
 
   router.post('/api/send', (Request request) async {
-    final user = _requireUser(request, authService);
+    final user = await _requireUser(request, authService);
     if (user == null) {
       return _jsonResponse(HttpStatus.unauthorized, {
         'ok': false,
@@ -580,7 +580,7 @@ Handler createHandler({
       });
     }
 
-    final settings = settingsService.load();
+    final settings = await settingsService.load();
     final configError = integrationRegistry.validateDeliveryConfiguration(settings);
     if (configError != null) {
       return _jsonResponse(HttpStatus.badRequest, {
@@ -616,8 +616,8 @@ Handler createHandler({
     }
   });
 
-  router.get('/api/admin/users', (Request request) {
-    final user = _requireAdmin(request, authService);
+  router.get('/api/admin/users', (Request request) async {
+    final user = await _requireAdmin(request, authService);
     if (user == null) {
       return _jsonResponse(HttpStatus.forbidden, {
         'ok': false,
@@ -625,15 +625,14 @@ Handler createHandler({
       });
     }
 
-    final users = database
-        .listUsers()
+    final users = (await database.listUsers())
         .map(_sanitizeUserMap)
         .toList(growable: false);
     return _jsonResponse(HttpStatus.ok, {'ok': true, 'items': users});
   });
 
   router.post('/api/admin/users', (Request request) async {
-    final admin = _requireAdmin(request, authService);
+    final admin = await _requireAdmin(request, authService);
     if (admin == null) {
       return _jsonResponse(HttpStatus.forbidden, {
         'ok': false,
@@ -665,14 +664,14 @@ Handler createHandler({
         'error': validationError,
       });
     }
-    if (database.getUserByUsername(username) != null) {
+    if (await database.getUserByUsername(username) != null) {
       return _jsonResponse(HttpStatus.conflict, {
         'ok': false,
         'error': 'Пользователь с таким логином уже существует.',
       });
     }
 
-    final id = database.createUser(
+    final id = await database.createUser(
       username: username,
       displayName: displayName,
       email: email,
@@ -682,7 +681,7 @@ Handler createHandler({
     );
     return _jsonResponse(HttpStatus.ok, {
       'ok': true,
-      'user': _sanitizeUserMap(database.getUserById(id)!),
+      'user': _sanitizeUserMap((await database.getUserById(id))!),
     });
   });
 
@@ -690,7 +689,7 @@ Handler createHandler({
     Request request,
     String id,
   ) async {
-    final admin = _requireAdmin(request, authService);
+    final admin = await _requireAdmin(request, authService);
     if (admin == null) {
       return _jsonResponse(HttpStatus.forbidden, {
         'ok': false,
@@ -699,7 +698,7 @@ Handler createHandler({
     }
 
     final userId = int.parse(id);
-    final existing = database.getUserById(userId);
+    final existing = await database.getUserById(userId);
     if (existing == null) {
       return _jsonResponse(HttpStatus.notFound, {
         'ok': false,
@@ -741,7 +740,7 @@ Handler createHandler({
         (existing['role'] == 'admin' &&
             existing['isActive'] == true &&
             !isActive)) {
-      if (database.countActiveAdmins() <= 1) {
+      if (await database.countActiveAdmins() <= 1) {
         return _jsonResponse(HttpStatus.badRequest, {
           'ok': false,
           'error':
@@ -750,7 +749,7 @@ Handler createHandler({
       }
     }
 
-    database.updateUser(
+    await database.updateUser(
       id: userId,
       displayName: displayName,
       email: email,
@@ -762,12 +761,12 @@ Handler createHandler({
     );
     return _jsonResponse(HttpStatus.ok, {
       'ok': true,
-      'user': _sanitizeUserMap(database.getUserById(userId)!),
+      'user': _sanitizeUserMap((await database.getUserById(userId))!),
     });
   });
 
-  router.get('/api/admin/settings', (Request request) {
-    final admin = _requireAdmin(request, authService);
+  router.get('/api/admin/settings', (Request request) async {
+    final admin = await _requireAdmin(request, authService);
     if (admin == null) {
       return _jsonResponse(HttpStatus.forbidden, {
         'ok': false,
@@ -775,7 +774,7 @@ Handler createHandler({
       });
     }
 
-    final settings = settingsService.load();
+    final settings = await settingsService.load();
     return _jsonResponse(HttpStatus.ok, {
       'ok': true,
       'settings': _buildSettingsPayload(
@@ -786,8 +785,8 @@ Handler createHandler({
     });
   });
 
-  router.get('/api/admin/integrations', (Request request) {
-    final admin = _requireAdmin(request, authService);
+  router.get('/api/admin/integrations', (Request request) async {
+    final admin = await _requireAdmin(request, authService);
     if (admin == null) {
       return _jsonResponse(HttpStatus.forbidden, {
         'ok': false,
@@ -795,7 +794,7 @@ Handler createHandler({
       });
     }
 
-    final settings = settingsService.load();
+    final settings = await settingsService.load();
     return _jsonResponse(HttpStatus.ok, {
       'ok': true,
       'items': integrationRegistry
@@ -809,8 +808,8 @@ Handler createHandler({
     });
   });
 
-  router.get('/api/admin/inbound-rules', (Request request) {
-    final admin = _requireAdmin(request, authService);
+  router.get('/api/admin/inbound-rules', (Request request) async {
+    final admin = await _requireAdmin(request, authService);
     if (admin == null) {
       return _jsonResponse(HttpStatus.forbidden, {
         'ok': false,
@@ -820,12 +819,12 @@ Handler createHandler({
 
     return _jsonResponse(HttpStatus.ok, {
       'ok': true,
-      'items': database.listInboundRules(),
+      'items': await database.listInboundRules(),
     });
   });
 
-  router.get('/api/admin/inbound-events', (Request request) {
-    final admin = _requireAdmin(request, authService);
+  router.get('/api/admin/inbound-events', (Request request) async {
+    final admin = await _requireAdmin(request, authService);
     if (admin == null) {
       return _jsonResponse(HttpStatus.forbidden, {
         'ok': false,
@@ -839,7 +838,7 @@ Handler createHandler({
 
     return _jsonResponse(HttpStatus.ok, {
       'ok': true,
-      'items': database.listInboundEvents(
+      'items': await database.listInboundEvents(
         limit: limit.clamp(1, 100),
         source: source.isEmpty ? null : source,
       ),
@@ -847,7 +846,7 @@ Handler createHandler({
   });
 
   router.post('/api/admin/inbound-rules', (Request request) async {
-    final admin = _requireAdmin(request, authService);
+    final admin = await _requireAdmin(request, authService);
     if (admin == null) {
       return _jsonResponse(HttpStatus.forbidden, {
         'ok': false,
@@ -864,7 +863,7 @@ Handler createHandler({
       });
     }
 
-    final id = database.insertInboundRule(
+    final id = await database.insertInboundRule(
       name: (payload['name'] as String? ?? '').trim(),
       source: (payload['source'] as String? ?? 'n8n').trim().toLowerCase(),
       eventType: (payload['eventType'] as String? ?? '').trim(),
@@ -881,7 +880,7 @@ Handler createHandler({
 
     return _jsonResponse(HttpStatus.ok, {
       'ok': true,
-      'item': database.getInboundRuleById(id),
+      'item': await database.getInboundRuleById(id),
     });
   });
 
@@ -889,7 +888,7 @@ Handler createHandler({
     Request request,
     String id,
   ) async {
-    final admin = _requireAdmin(request, authService);
+    final admin = await _requireAdmin(request, authService);
     if (admin == null) {
       return _jsonResponse(HttpStatus.forbidden, {
         'ok': false,
@@ -898,7 +897,7 @@ Handler createHandler({
     }
 
     final ruleId = int.parse(id);
-    final existing = database.getInboundRuleById(ruleId);
+    final existing = await database.getInboundRuleById(ruleId);
     if (existing == null) {
       return _jsonResponse(HttpStatus.notFound, {
         'ok': false,
@@ -919,7 +918,7 @@ Handler createHandler({
       });
     }
 
-    database.updateInboundRule(
+    await database.updateInboundRule(
       id: ruleId,
       name: (merged['name'] as String? ?? '').trim(),
       source: (merged['source'] as String? ?? 'n8n').trim().toLowerCase(),
@@ -937,12 +936,12 @@ Handler createHandler({
 
     return _jsonResponse(HttpStatus.ok, {
       'ok': true,
-      'item': database.getInboundRuleById(ruleId),
+      'item': await database.getInboundRuleById(ruleId),
     });
   });
 
   router.put('/api/admin/settings', (Request request) async {
-    final admin = _requireAdmin(request, authService);
+    final admin = await _requireAdmin(request, authService);
     if (admin == null) {
       return _jsonResponse(HttpStatus.forbidden, {
         'ok': false,
@@ -966,11 +965,11 @@ Handler createHandler({
       });
     }
 
-    settingsService.updateFromPayload(payload);
+    await settingsService.updateFromPayload(payload);
     return _jsonResponse(HttpStatus.ok, {
       'ok': true,
       'settings': _buildSettingsPayload(
-        settingsService.load(),
+        await settingsService.load(),
         registry: integrationRegistry,
         includeAdminFields: true,
       ),
@@ -978,7 +977,7 @@ Handler createHandler({
   });
 
   router.post('/api/incoming/n8n', (Request request) async {
-    final settings = settingsService.load();
+    final settings = await settingsService.load();
     if (!_isInboundSecretValid(request, settings)) {
       return _jsonResponse(HttpStatus.unauthorized, {
         'ok': false,
@@ -1002,7 +1001,7 @@ Handler createHandler({
     }
 
     if (event.requestId.isNotEmpty) {
-      final existing = database.getInboundEventByRequestId(
+      final existing = await database.getInboundEventByRequestId(
         source: event.source,
         requestId: event.requestId,
       );
@@ -1029,7 +1028,7 @@ Handler createHandler({
       final resolution = await inboundNotificationService.resolveDelivery(
         settings: settings,
         event: event,
-        activeRules: database.listActiveInboundRulesBySource('n8n'),
+        activeRules: await database.listActiveInboundRulesBySource('n8n'),
       );
 
       final outcome = await campaignDeliveryService.sendCampaign(
@@ -1045,7 +1044,7 @@ Handler createHandler({
       );
 
       if (event.requestId.isNotEmpty) {
-        database.insertInboundEvent(
+        await database.insertInboundEvent(
           source: event.source,
           eventType: event.eventType,
           requestId: event.requestId,
@@ -1064,7 +1063,7 @@ Handler createHandler({
       });
     } on InboundNotificationException catch (error) {
       if (event.requestId.isNotEmpty) {
-        database.insertInboundEvent(
+        await database.insertInboundEvent(
           source: event.source,
           eventType: event.eventType,
           requestId: event.requestId,
@@ -1079,7 +1078,7 @@ Handler createHandler({
       });
     } on DeliveryRouterException catch (error) {
       if (event.requestId.isNotEmpty) {
-        database.insertInboundEvent(
+        await database.insertInboundEvent(
           source: event.source,
           eventType: event.eventType,
           requestId: event.requestId,
@@ -1095,7 +1094,7 @@ Handler createHandler({
       });
     } on MessagingPlatformException catch (error) {
       if (event.requestId.isNotEmpty) {
-        database.insertInboundEvent(
+        await database.insertInboundEvent(
           source: event.source,
           eventType: event.eventType,
           requestId: event.requestId,
@@ -1113,7 +1112,7 @@ Handler createHandler({
   });
 
   router.post('/api/incoming/alertmanager', (Request request) async {
-    final settings = settingsService.load();
+    final settings = await settingsService.load();
     if (!_isInboundSecretValid(request, settings)) {
       return _jsonResponse(HttpStatus.unauthorized, {
         'ok': false,
@@ -1134,7 +1133,7 @@ Handler createHandler({
     }
 
     if (event.requestId.isNotEmpty) {
-      final existing = database.getInboundEventByRequestId(
+      final existing = await database.getInboundEventByRequestId(
         source: event.source,
         requestId: event.requestId,
       );
@@ -1161,7 +1160,7 @@ Handler createHandler({
       final resolution = await inboundNotificationService.resolveDelivery(
         settings: settings,
         event: event,
-        activeRules: database.listActiveInboundRulesBySource('alertmanager'),
+        activeRules: await database.listActiveInboundRulesBySource('alertmanager'),
       );
 
       final outcome = await campaignDeliveryService.sendCampaign(
@@ -1177,7 +1176,7 @@ Handler createHandler({
       );
 
       if (event.requestId.isNotEmpty) {
-        database.insertInboundEvent(
+        await database.insertInboundEvent(
           source: event.source,
           eventType: event.eventType,
           requestId: event.requestId,
@@ -1196,7 +1195,7 @@ Handler createHandler({
       });
     } on InboundNotificationException catch (error) {
       if (event.requestId.isNotEmpty) {
-        database.insertInboundEvent(
+        await database.insertInboundEvent(
           source: event.source,
           eventType: event.eventType,
           requestId: event.requestId,
@@ -1211,7 +1210,7 @@ Handler createHandler({
       });
     } on DeliveryRouterException catch (error) {
       if (event.requestId.isNotEmpty) {
-        database.insertInboundEvent(
+        await database.insertInboundEvent(
           source: event.source,
           eventType: event.eventType,
           requestId: event.requestId,
@@ -1227,7 +1226,7 @@ Handler createHandler({
       });
     } on MessagingPlatformException catch (error) {
       if (event.requestId.isNotEmpty) {
-        database.insertInboundEvent(
+        await database.insertInboundEvent(
           source: event.source,
           eventType: event.eventType,
           requestId: event.requestId,
@@ -1313,15 +1312,21 @@ String _buildKeycloakRedirectUri(Request request, AppSettings settings) {
   return '$origin/api/auth/keycloak/callback';
 }
 
-AuthenticatedUser? _requireUser(Request request, AuthService authService) {
+Future<AuthenticatedUser?> _requireUser(
+  Request request,
+  AuthService authService,
+) async {
   final token = authService.readSessionToken(
     request.headers[HttpHeaders.cookieHeader],
   );
   return authService.resolveSession(token);
 }
 
-AuthenticatedUser? _requireAdmin(Request request, AuthService authService) {
-  final user = _requireUser(request, authService);
+Future<AuthenticatedUser?> _requireAdmin(
+  Request request,
+  AuthService authService,
+) async {
+  final user = await _requireUser(request, authService);
   if (user == null || !user.isAdmin) {
     return null;
   }
@@ -1340,10 +1345,10 @@ Map<String, Object?> _sanitizeUserMap(Map<String, Object?> user) => {
   'updatedAt': user['updatedAt'],
 };
 
-Map<String, Object?>? _findUserForPasswordReset(
-  AppDatabase database,
+Future<Map<String, Object?>?> _findUserForPasswordReset(
+  DatabaseStore database,
   String login,
-) {
+) async {
   if (login.contains('@')) {
     return database.getUserByEmail(login.toLowerCase());
   }

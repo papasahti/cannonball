@@ -5,8 +5,8 @@ import 'package:shelf/shelf.dart';
 import 'src/app_server.dart';
 import 'src/auth_service.dart';
 import 'src/config.dart';
-import 'src/database.dart';
 import 'src/database_factory.dart';
+import 'src/database_store.dart';
 import 'src/mattermost_directory_sync.dart';
 import 'src/settings_service.dart';
 
@@ -20,23 +20,23 @@ class Application {
 
   final AppConfig config;
   final Handler handler;
-  final AppDatabase database;
+  final DatabaseStore database;
   final MattermostDirectorySyncService? directorySyncService;
 
-  void close() {
+  Future<void> close() async {
     directorySyncService?.close();
-    database.close();
+    await database.close();
   }
 }
 
 Future<Application> buildApplication() async {
   final config = AppConfig.fromEnvironment();
   final database = DatabaseFactoryRegistry().open(config);
-  database.initialize();
+  await database.initialize();
   final bootstrapPasswordHash =
       config.bootstrapAdminPasswordHash ??
       AuthService.hashPassword(config.bootstrapAdminPassword!);
-  database.ensureBootstrapAdmin(
+  await database.ensureBootstrapAdmin(
     username: config.bootstrapAdminUsername,
     displayName: config.bootstrapAdminDisplayName,
     email: config.bootstrapAdminEmail,
