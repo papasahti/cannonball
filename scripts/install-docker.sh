@@ -3,8 +3,14 @@
 set -Eeuo pipefail
 
 APP_NAME="cannonball"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT_FROM_SCRIPT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+SCRIPT_PATH="${BASH_SOURCE[0]:-$0}"
+SCRIPT_DIR=""
+REPO_ROOT_FROM_SCRIPT=""
+
+if [[ -n "${SCRIPT_PATH}" && "${SCRIPT_PATH}" != "bash" && "${SCRIPT_PATH}" != "-" ]]; then
+  SCRIPT_DIR="$(cd "$(dirname "${SCRIPT_PATH}")" && pwd)"
+  REPO_ROOT_FROM_SCRIPT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+fi
 
 if [[ "${EUID}" -eq 0 ]]; then
   DEFAULT_INSTALL_DIR="/opt/cannonball-docker"
@@ -93,31 +99,26 @@ set_env_value() {
 
 is_repo_root() {
   local candidate="$1"
-  [[ -f "${candidate}/Dockerfile" && -f "${candidate}/docker-compose.yml" && -f "${candidate}/.env.example" ]]
+  [[ -f "${candidate}/Dockerfile" && -f "${candidate}/docker-compose.yml" && -f "${candidate}/pubspec.yaml" ]]
 }
 
 find_repo_root() {
   local base_dir="$1"
-  local found_root=""
+  local compose_file=""
+  local candidate=""
 
   if is_repo_root "${base_dir}"; then
     printf '%s\n' "${base_dir}"
     return
   fi
 
-  found_root="$(find "${base_dir}" -type f -name 'docker-compose.yml' -print 2>/dev/null | while read -r compose_file; do
-    local candidate
+  while IFS= read -r compose_file; do
     candidate="$(dirname "${compose_file}")"
     if is_repo_root "${candidate}"; then
       printf '%s\n' "${candidate}"
-      break
+      return 0
     fi
-  done)"
-
-  if [[ -n "${found_root}" ]]; then
-    printf '%s\n' "${found_root}"
-    return
-  fi
+  done < <(find "${base_dir}" -type f -name 'docker-compose.yml' -print 2>/dev/null)
 
   return 1
 }
@@ -159,7 +160,7 @@ prepare_source_dir() {
     return
   fi
 
-  if is_repo_root "${REPO_ROOT_FROM_SCRIPT}"; then
+  if [[ -n "${REPO_ROOT_FROM_SCRIPT}" ]] && is_repo_root "${REPO_ROOT_FROM_SCRIPT}"; then
     SOURCE_DIR="${REPO_ROOT_FROM_SCRIPT}"
     log "Использую каталог рядом со скриптом: ${SOURCE_DIR}"
     return
@@ -200,8 +201,53 @@ install_source() {
 prepare_runtime_files() {
   mkdir -p "${DATA_DIR}"
 
-  if [[ ! -f "${INSTALL_DIR}/.env" ]]; then
+  if [[ ! -f "${INSTALL_DIR}/.env" && -f "${INSTALL_DIR}/.env.example" ]]; then
     cp "${INSTALL_DIR}/.env.example" "${INSTALL_DIR}/.env"
+  fi
+
+  if [[ ! -f "${INSTALL_DIR}/.env" ]]; then
+    cat >"${INSTALL_DIR}/.env" <<EOF
+PORT=${PORT_VALUE}
+DATABASE_DRIVER=sqlite
+DATABASE_PATH=/data/cannonball.db
+APP_WEB_ROOT=/app/web
+APP_USERNAME=${ADMIN_LOGIN}
+APP_ADMIN_DISPLAY_NAME=${ADMIN_NAME}
+APP_ADMIN_EMAIL=${ADMIN_EMAIL}
+APP_PASSWORD=change-me
+ALLOW_INSECURE_COOKIE=true
+SESSION_TTL_HOURS=12
+APP_TITLE=cannonball
+DELIVERY_MODE=mattermost
+APP_BASE_URL=${PUBLIC_URL}
+AUTH_MODE=local
+
+MATTERMOST_BASE_URL=
+MATTERMOST_TOKEN=
+MATTERMOST_TEAM_ID=
+MATTERMOST_TEAM_NAME=devops
+MATTERMOST_CHANNELS=alerts,dev
+
+N8N_BASE_URL=
+N8N_WEBHOOK_URL=
+N8N_API_KEY=
+N8N_WEBHOOK_SECRET=
+N8N_INBOUND_SECRET=
+
+SMTP_HOST=
+SMTP_PORT=587
+SMTP_USERNAME=
+SMTP_PASSWORD=
+SMTP_FROM_EMAIL=
+SMTP_FROM_NAME=cannonball
+SMTP_USE_SSL=false
+
+KEYCLOAK_ISSUER_URL=
+KEYCLOAK_CLIENT_ID=
+KEYCLOAK_CLIENT_SECRET=
+KEYCLOAK_SCOPES=openid profile email
+KEYCLOAK_ADMIN_ROLE=cannonball-admin
+EOF
   fi
 
   if [[ -z "${APP_PASSWORD}" ]]; then
