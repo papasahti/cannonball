@@ -29,13 +29,21 @@ class Application {
   }
 }
 
+String resolveBootstrapPasswordHash(AppConfig config) {
+  if (config.forceBootstrapAdminPasswordSync &&
+      config.bootstrapAdminPassword != null) {
+    return AuthService.hashPassword(config.bootstrapAdminPassword!);
+  }
+
+  return config.bootstrapAdminPasswordHash ??
+      AuthService.hashPassword(config.bootstrapAdminPassword!);
+}
+
 Future<Application> buildApplication() async {
   final config = AppConfig.fromEnvironment();
   final database = DatabaseFactoryRegistry().open(config);
   await database.initialize();
-  final bootstrapPasswordHash =
-      config.bootstrapAdminPasswordHash ??
-      AuthService.hashPassword(config.bootstrapAdminPassword!);
+  final bootstrapPasswordHash = resolveBootstrapPasswordHash(config);
   await database.ensureBootstrapAdmin(
     username: config.bootstrapAdminUsername,
     displayName: config.bootstrapAdminDisplayName,
