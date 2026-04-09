@@ -1,130 +1,166 @@
 #!/usr/bin/env bash
-set -euo pipefail
+
+set -Eeuo pipefail
 
 APP_NAME="cannonball"
-INSTALL_DIR="${CANNONBALL_INSTALL_DIR:-/opt/cannonball-docker}"
-DATA_DIR="${CANNONBALL_DATA_DIR:-/var/lib/cannonball}"
-PORT="${CANNONBALL_PORT:-8080}"
-PUBLIC_URL="${CANNONBALL_PUBLIC_URL:-http://127.0.0.1:${PORT}}"
-APP_TITLE="${CANNONBALL_APP_TITLE:-cannonball}"
-APP_USERNAME="${CANNONBALL_APP_USERNAME:-admin}"
-APP_ADMIN_DISPLAY_NAME="${CANNONBALL_ADMIN_DISPLAY_NAME:-Docker Admin}"
-APP_ADMIN_EMAIL="${CANNONBALL_ADMIN_EMAIL:-admin@example.com}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT_FROM_SCRIPT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+if [[ "${EUID}" -eq 0 ]]; then
+  DEFAULT_INSTALL_DIR="/opt/cannonball-docker"
+  DEFAULT_DATA_DIR="/var/lib/cannonball"
+else
+  DEFAULT_INSTALL_DIR="${HOME}/cannonball-docker"
+  DEFAULT_DATA_DIR="${HOME}/.local/share/cannonball"
+fi
+
+INSTALL_DIR="${CANNONBALL_INSTALL_DIR:-${DEFAULT_INSTALL_DIR}}"
+DATA_DIR="${CANNONBALL_DATA_DIR:-${DEFAULT_DATA_DIR}}"
+PUBLIC_URL="${CANNONBALL_PUBLIC_URL:-http://localhost:${CANNONBALL_PORT:-8080}}"
+PORT_VALUE="${CANNONBALL_PORT:-8080}"
+ADMIN_LOGIN="${CANNONBALL_APP_USERNAME:-admin}"
+ADMIN_NAME="${CANNONBALL_APP_ADMIN_DISPLAY_NAME:-System Administrator}"
+ADMIN_EMAIL="${CANNONBALL_APP_ADMIN_EMAIL:-admin@example.com}"
 APP_PASSWORD="${CANNONBALL_APP_PASSWORD:-}"
 REPO_ARCHIVE_URL="${CANNONBALL_REPO_ARCHIVE_URL:-}"
 
-require_command() {
-  if ! command -v "$1" >/dev/null 2>&1; then
-    echo "Required command not found: $1" >&2
-    exit 1
+TMP_DIR=""
+SOURCE_DIR=""
+COMPOSE_CMD=""
+
+cleanup() {
+  if [[ -n "${TMP_DIR}" && -d "${TMP_DIR}" ]]; then
+    rm -rf "${TMP_DIR}"
   fi
+}
+
+trap cleanup EXIT
+
+log() {
+  printf '[cannonball] %s\n' "$*"
+}
+
+fail() {
+  printf '[cannonball] ERROR: %s\n' "$*" >&2
+  exit 1
+}
+
+require_command() {
+  command -v "$1" >/dev/null 2>&1 || fail "Не найдена команда: $1"
 }
 
 detect_compose() {
   if docker compose version >/dev/null 2>&1; then
-    echo "docker compose"
+    COMPOSE_CMD="docker compose"
     return
   fi
+
   if command -v docker-compose >/dev/null 2>&1; then
-    echo "docker-compose"
+    COMPOSE_CMD="docker-compose"
     return
   fi
-  echo "Docker Compose is required." >&2
-  exit 1
+
+  fail "Не найден docker compose или docker-compose"
 }
 
 generate_password() {
-  LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 18
+  if command -v openssl >/dev/null 2>&1; then
+    openssl rand -base64 24 | tr -d '\n'
+    return
+  fi
+
+  tr -dc 'A-Za-z0-9' </dev/urandom | head -c 24
+}
+
+set_env_value() {
+  local file="$1"
+  local key="$2"
+  local value="$3"
+  local escaped_value
+
+  escaped_value="$(printf '%s' "${value}" | sed 's/[\/&]/\\&/g')"
+
+  if grep -qE "^${key}=" "${file}"; then
+    sed -i.bak "s/^${key}=.*/${key}=${escaped_value}/" "${file}"
+  else
+    printf '%s=%s\n' "${key}" "${value}" >>"${file}"
+  fi
+
+  rm -f "${file}.bak"
+}
+
+is_repo_root() {
+  local candidate="$1"
+  [[ -f "${candidate}/Dockerfile" && -f "${candidate}/docker-compose.yml" && -f "${candidate}/.env.example" ]]
 }
 
 prepare_source_dir() {
-  if [ -f "./docker-compose.yml" ] && [ -f "./Dockerfile" ]; then
-    pwd
+  if is_repo_root "${PWD}"; then
+    SOURCE_DIR="${PWD}"
+    log "Использую текущий каталог репозитория: ${SOURCE_DIR}"
     return
   fi
 
-  if [ -z "$REPO_ARCHIVE_URL" ]; then
-    echo "CANNONBALL_REPO_ARCHIVE_URL is required when the script is started outside the repository." >&2
-    echo "Example:" >&2
-    echo "  curl -fsSL https://gitlab.example.com/group/cannonball/-/raw/main/scripts/install-docker.sh | \\" >&2
-    echo "    CANNONBALL_REPO_ARCHIVE_URL=https://gitlab.example.com/group/cannonball/-/archive/main/cannonball-main.tar.gz bash" >&2
-    exit 1
-  fi
-
-  local tmp_dir
-  tmp_dir="$(mktemp -d)"
-  trap 'rm -rf "$tmp_dir"' EXIT
-
-  echo "Downloading source archive..."
-  curl -fsSL "$REPO_ARCHIVE_URL" -o "$tmp_dir/source.tar.gz"
-  tar -xzf "$tmp_dir/source.tar.gz" -C "$tmp_dir"
-
-  local extracted_dir
-  extracted_dir="$(find "$tmp_dir" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
-  if [ -z "$extracted_dir" ] || [ ! -f "$extracted_dir/docker-compose.yml" ]; then
-    echo "Failed to unpack a valid cannonball source tree from archive." >&2
-    exit 1
-  fi
-
-  echo "$extracted_dir"
-}
-
-write_env_file() {
-  local target_dir="$1"
-  local env_file="$target_dir/.env"
-
-  if [ -f "$env_file" ]; then
-    echo "Using existing .env in $target_dir"
+  if is_repo_root "${REPO_ROOT_FROM_SCRIPT}"; then
+    SOURCE_DIR="${REPO_ROOT_FROM_SCRIPT}"
+    log "Использую каталог рядом со скриптом: ${SOURCE_DIR}"
     return
   fi
 
-  cat >"$env_file" <<EOF
-PORT=${PORT}
-DATABASE_DRIVER=sqlite
-DATABASE_PATH=/data/cannonball.db
-APP_WEB_ROOT=/app/web
-APP_USERNAME=${APP_USERNAME}
-APP_ADMIN_DISPLAY_NAME=${APP_ADMIN_DISPLAY_NAME}
-APP_ADMIN_EMAIL=${APP_ADMIN_EMAIL}
-APP_PASSWORD=${APP_PASSWORD}
-ALLOW_INSECURE_COOKIE=true
-SESSION_TTL_HOURS=12
-APP_TITLE=${APP_TITLE}
-DELIVERY_MODE=mattermost
-APP_BASE_URL=${PUBLIC_URL}
-AUTH_MODE=local
+  [[ -n "${REPO_ARCHIVE_URL}" ]] || fail "Скрипт запущен вне репозитория. Задай CANNONBALL_REPO_ARCHIVE_URL с URL архива проекта."
 
-MATTERMOST_BASE_URL=
-MATTERMOST_TOKEN=
-MATTERMOST_TEAM_ID=
-MATTERMOST_TEAM_NAME=devops
-MATTERMOST_CHANNELS=alerts,dev
-
-N8N_BASE_URL=
-N8N_WEBHOOK_URL=
-N8N_API_KEY=
-N8N_WEBHOOK_SECRET=
-N8N_INBOUND_SECRET=
-
-SMTP_HOST=
-SMTP_PORT=587
-SMTP_USERNAME=
-SMTP_PASSWORD=
-SMTP_FROM_EMAIL=
-SMTP_FROM_NAME=cannonball
-SMTP_USE_SSL=false
-
-KEYCLOAK_ISSUER_URL=
-KEYCLOAK_CLIENT_ID=
-KEYCLOAK_CLIENT_SECRET=
-KEYCLOAK_SCOPES=openid profile email
-KEYCLOAK_ADMIN_ROLE=cannonball-admin
-EOF
+  TMP_DIR="$(mktemp -d)"
+  log "Скачиваю архив проекта..."
+  curl -fsSL "${REPO_ARCHIVE_URL}" -o "${TMP_DIR}/cannonball.tar.gz"
+  mkdir -p "${TMP_DIR}/src"
+  tar -xzf "${TMP_DIR}/cannonball.tar.gz" -C "${TMP_DIR}/src"
+  SOURCE_DIR="$(find "${TMP_DIR}/src" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
+  [[ -n "${SOURCE_DIR}" ]] || fail "Не удалось распаковать архив проекта"
+  is_repo_root "${SOURCE_DIR}" || fail "В архиве не найден корректный корень репозитория"
+  log "Архив распакован во временный каталог"
 }
 
-write_compose_override() {
-  local target_dir="$1"
-  cat >"$target_dir/docker-compose.override.yml" <<EOF
+install_source() {
+  [[ -n "${SOURCE_DIR}" ]] || fail "SOURCE_DIR не определён"
+
+  log "Готовлю каталог установки: ${INSTALL_DIR}"
+  mkdir -p "${INSTALL_DIR}"
+
+  if [[ -d "${INSTALL_DIR}" ]]; then
+    find "${INSTALL_DIR}" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+  fi
+
+  tar \
+    --exclude='.git' \
+    --exclude='.dart_tool' \
+    --exclude='build' \
+    --exclude='.DS_Store' \
+    -C "${SOURCE_DIR}" -cf - . | tar -C "${INSTALL_DIR}" -xf -
+}
+
+prepare_runtime_files() {
+  mkdir -p "${DATA_DIR}"
+
+  if [[ ! -f "${INSTALL_DIR}/.env" ]]; then
+    cp "${INSTALL_DIR}/.env.example" "${INSTALL_DIR}/.env"
+  fi
+
+  if [[ -z "${APP_PASSWORD}" ]]; then
+    APP_PASSWORD="$(generate_password)"
+    log "Сгенерирован пароль администратора"
+  fi
+
+  set_env_value "${INSTALL_DIR}/.env" "PORT" "${PORT_VALUE}"
+  set_env_value "${INSTALL_DIR}/.env" "APP_USERNAME" "${ADMIN_LOGIN}"
+  set_env_value "${INSTALL_DIR}/.env" "APP_ADMIN_DISPLAY_NAME" "${ADMIN_NAME}"
+  set_env_value "${INSTALL_DIR}/.env" "APP_ADMIN_EMAIL" "${ADMIN_EMAIL}"
+  set_env_value "${INSTALL_DIR}/.env" "APP_PASSWORD" "${APP_PASSWORD}"
+  set_env_value "${INSTALL_DIR}/.env" "APP_BASE_URL" "${PUBLIC_URL}"
+  set_env_value "${INSTALL_DIR}/.env" "DATABASE_DRIVER" "sqlite"
+  set_env_value "${INSTALL_DIR}/.env" "DATABASE_PATH" "/data/cannonball.db"
+  set_env_value "${INSTALL_DIR}/.env" "APP_WEB_ROOT" "/app/web"
+
+  cat >"${INSTALL_DIR}/docker-compose.override.yml" <<EOF
 services:
   cannonball:
     volumes:
@@ -132,64 +168,41 @@ services:
 EOF
 }
 
-install_source() {
-  local source_dir="$1"
+start_stack() {
+  log "Поднимаю Docker-стек..."
+  (
+    cd "${INSTALL_DIR}"
+    ${COMPOSE_CMD} up -d --build
+  )
+}
 
-  mkdir -p "$INSTALL_DIR"
-  mkdir -p "$DATA_DIR"
+print_summary() {
+  cat <<EOF
 
-  if command -v rsync >/dev/null 2>&1; then
-    rsync -a --delete \
-      --exclude '.git' \
-      --exclude '.dart_tool' \
-      --exclude 'build' \
-      --exclude '.quickstart-data' \
-      "$source_dir"/ "$INSTALL_DIR"/
-  else
-    rm -rf "$INSTALL_DIR"
-    mkdir -p "$INSTALL_DIR"
-    cp -R "$source_dir"/. "$INSTALL_DIR"/
-  fi
+cannonball запущен.
+
+URL: ${PUBLIC_URL}
+Логин администратора: ${ADMIN_LOGIN}
+Пароль администратора: ${APP_PASSWORD}
+Каталог установки: ${INSTALL_DIR}
+Каталог данных: ${DATA_DIR}
+
+Проверка:
+  cd ${INSTALL_DIR} && ${COMPOSE_CMD} ps
+  curl -fsSL ${PUBLIC_URL}/health
+EOF
 }
 
 main() {
   require_command docker
   require_command curl
-
-  local compose_cmd
-  compose_cmd="$(detect_compose)"
-
-  if [ -z "$APP_PASSWORD" ]; then
-    APP_PASSWORD="$(generate_password)"
-  fi
-
-  local source_dir
-  source_dir="$(prepare_source_dir)"
-
-  echo "Installing $APP_NAME into $INSTALL_DIR"
-  install_source "$source_dir"
-  write_env_file "$INSTALL_DIR"
-  write_compose_override "$INSTALL_DIR"
-
-  cd "$INSTALL_DIR"
-
-  echo "Starting Docker stack..."
-  $compose_cmd up -d --build
-
-  echo
-  echo "$APP_NAME is up."
-  echo "URL: $PUBLIC_URL"
-  echo "Admin login: $APP_USERNAME"
-  echo "Admin password: $APP_PASSWORD"
-  echo
-  echo "Project directory: $INSTALL_DIR"
-  echo "Data directory: $DATA_DIR"
-  echo
-  echo "Check status with:"
-  echo "  cd $INSTALL_DIR && $compose_cmd ps"
-  echo
-  echo "Follow logs with:"
-  echo "  cd $INSTALL_DIR && $compose_cmd logs -f"
+  require_command tar
+  detect_compose
+  prepare_source_dir
+  install_source
+  prepare_runtime_files
+  start_stack
+  print_summary
 }
 
 main "$@"
