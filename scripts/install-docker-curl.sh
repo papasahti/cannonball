@@ -20,7 +20,7 @@ PUBLIC_URL="${CANNONBALL_PUBLIC_URL:-http://localhost:${PORT_VALUE}}"
 ADMIN_LOGIN="${CANNONBALL_APP_USERNAME:-admin}"
 ADMIN_NAME="${CANNONBALL_APP_ADMIN_DISPLAY_NAME:-System Administrator}"
 ADMIN_EMAIL="${CANNONBALL_APP_ADMIN_EMAIL:-admin@example.com}"
-APP_PASSWORD="${CANNONBALL_APP_PASSWORD:-}"
+APP_PASSWORD="${CANNONBALL_APP_PASSWORD:-adminadmin}"
 
 TMP_DIR=""
 SOURCE_DIR=""
@@ -59,15 +59,6 @@ detect_compose() {
   fi
 
   fail "Не найден docker compose или docker-compose"
-}
-
-generate_password() {
-  if command -v openssl >/dev/null 2>&1; then
-    openssl rand -base64 24 | tr -d '\n'
-    return
-  fi
-
-  tr -dc 'A-Za-z0-9' </dev/urandom | head -c 24
 }
 
 set_env_value() {
@@ -173,7 +164,7 @@ APP_WEB_ROOT=/app/web
 APP_USERNAME=${ADMIN_LOGIN}
 APP_ADMIN_DISPLAY_NAME=${ADMIN_NAME}
 APP_ADMIN_EMAIL=${ADMIN_EMAIL}
-APP_PASSWORD=change-me
+APP_PASSWORD=adminadmin
 ALLOW_INSECURE_COOKIE=true
 SESSION_TTL_HOURS=12
 APP_TITLE=cannonball
@@ -219,11 +210,6 @@ prepare_runtime_files() {
     else
       write_default_env
     fi
-  fi
-
-  if [[ -z "${APP_PASSWORD}" ]]; then
-    APP_PASSWORD="$(generate_password)"
-    log "Сгенерирован пароль администратора"
   fi
 
   set_env_value "${INSTALL_DIR}/.env" "PORT" "${PORT_VALUE}"
