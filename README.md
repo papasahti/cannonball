@@ -22,12 +22,12 @@ cp .env.example .env
 docker compose up --build
 ```
 
-После запуска приложение будет доступно на `http://localhost:8080`.
+После запуска приложение будет доступно на `http://localhost:8081`.
 
 Что важно:
 
 - база хранится в persistent volume
-- по умолчанию используется `SQLite`
+- по умолчанию используется отдельный `PostgreSQL` контейнер
 - по умолчанию первый вход: `admin / adminadmin`
 
 Если хочется поставить всё одной командой на Linux и сразу поднять Docker-стек, теперь есть отдельный install-скрипт:
@@ -57,7 +57,15 @@ curl -fsSL https://raw.githubusercontent.com/papasahti/cannonball/main/scripts/i
 - создаст `.env`
 - поставит дефолтный вход `admin / adminadmin`
 - поднимет приложение через `docker compose`
-- сохранит базу в `/var/lib/cannonball`
+- сохранит данные `PostgreSQL` в `/var/lib/cannonball`
+
+Если нужен вариант установки сразу с `nginx` перед приложением и отдельным каталогом под сертификаты, используй отдельный installer:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/papasahti/cannonball/main/scripts/install-docker-nginx-curl.sh | sudo bash
+```
+
+Он поднимет `cannonball` за `nginx`, откроет `80/443` и создаст каталог `/opt/nginx-docker` для сертификатов и nginx-конфига.
 
 Если нужно, можно переопределить ветку или репозиторий:
 
@@ -115,8 +123,8 @@ sudo ./install.sh
 
 - бинарь будет лежать в `/opt/cannonball/bin/cannonball`
 - конфиг в `/etc/cannonball/cannonball.env`
-- база в `/var/lib/cannonball/cannonball.db`
 - сервис запускается через `systemd`
+- для работы нужен доступный `PostgreSQL`, адрес задаётся в `DATABASE_URL`
 
 Проверка:
 
@@ -136,17 +144,18 @@ helm upgrade --install cannonball ./helm/cannonball \
   --set image.repository=registry.example.com/team/cannonball \
   --set image.tag=latest \
   --set env.APP_PASSWORD='change-me' \
-  --set env.APP_BASE_URL='https://cannonball.example.com'
+  --set env.APP_BASE_URL='https://cannonball.example.com' \
+  --set env.DATABASE_URL='postgresql://cannonball:cannonball@postgres:5432/cannonball'
 ```
 
 Для текущего chart важно помнить:
 
-- по умолчанию используется `SQLite`
-- база хранится в PVC
+- по умолчанию используется `PostgreSQL`
+- приложению нужен доступный `DATABASE_URL`
 - `replicaCount=1`
 - стратегия обновления `Recreate`
 
-Это нормальный режим для одного инстанса приложения. Если дальше понадобится горизонтальное масштабирование, следующим шагом уже стоит подключать внешний storage provider, например PostgreSQL.
+Это нормальный режим для одного инстанса приложения. Для production лучше сразу использовать внешний `PostgreSQL`, который живёт отдельно от pod'а приложения.
 
 ## Интеграции
 
@@ -211,7 +220,7 @@ Content-Type: application/json
 Для быстрой ручной проверки есть готовый smoke-скрипт:
 
 ```bash
-INBOUND_SECRET=change-me ./scripts/smoke-inbound-n8n.sh
+BASE_URL=http://127.0.0.1:8081 INBOUND_SECRET=change-me ./scripts/smoke-inbound-n8n.sh
 ```
 
 ### Keycloak

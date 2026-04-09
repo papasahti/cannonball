@@ -5,15 +5,18 @@ set -Eeuo pipefail
 if [[ "${EUID}" -eq 0 ]]; then
   INSTALL_DIR="${CANNONBALL_INSTALL_DIR:-/opt/cannonball-docker}"
   DATA_DIR="${CANNONBALL_DATA_DIR:-/var/lib/cannonball}"
+  NGINX_DIR="${CANNONBALL_NGINX_DIR:-/opt/nginx-docker}"
 else
   INSTALL_DIR="${CANNONBALL_INSTALL_DIR:-${HOME}/cannonball-docker}"
   DATA_DIR="${CANNONBALL_DATA_DIR:-${HOME}/.local/share/cannonball}"
+  NGINX_DIR="${CANNONBALL_NGINX_DIR:-${HOME}/nginx-docker}"
 fi
 
 IMAGE_NAME="${CANNONBALL_IMAGE_NAME:-cannonball:local}"
 REMOVE_IMAGE="${CANNONBALL_REMOVE_IMAGE:-true}"
 REMOVE_INSTALL_DIR="${CANNONBALL_REMOVE_INSTALL_DIR:-true}"
 REMOVE_DATA_DIR="${CANNONBALL_REMOVE_DATA_DIR:-true}"
+REMOVE_NGINX_DIR="${CANNONBALL_REMOVE_NGINX_DIR:-true}"
 PRUNE_BUILDER="${CANNONBALL_PRUNE_BUILDER:-false}"
 COMPOSE_CMD=""
 
@@ -98,6 +101,13 @@ remove_data_dir() {
   fi
 }
 
+remove_nginx_dir() {
+  if [[ "${REMOVE_NGINX_DIR}" = "true" && -d "${NGINX_DIR}" ]]; then
+    log "Удаляю каталог nginx ${NGINX_DIR}"
+    rm -rf "${NGINX_DIR}"
+  fi
+}
+
 prune_builder() {
   if [[ "${PRUNE_BUILDER}" = "true" ]]; then
     log "Очищаю docker builder cache"
@@ -112,6 +122,7 @@ cannonball удалён.
 
 Каталог установки: ${INSTALL_DIR}
 Каталог данных: ${DATA_DIR}
+Каталог nginx: ${NGINX_DIR}
 Image: ${IMAGE_NAME}
 
 Если нужен чистый reinstall:
@@ -128,6 +139,7 @@ main() {
   remove_image
   remove_install_dir
   remove_data_dir
+  remove_nginx_dir
   prune_builder
   print_summary
 }
