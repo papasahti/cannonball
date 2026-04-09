@@ -801,10 +801,24 @@ async function loadAdminUsers() {
 
 async function onCreateUser(event) {
   event.preventDefault();
-  const username = elements.createUserUsername.value.trim();
-  const displayName = elements.createUserDisplayName.value.trim();
-  const email = elements.createUserEmail.value.trim();
-  const password = elements.createUserPassword.value;
+  const formData = new FormData(elements.createUserForm);
+  const username = String(
+    formData.get('username') || elements.createUserUsername.value || '',
+  ).trim();
+  const displayName = String(
+    formData.get('displayName') || elements.createUserDisplayName.value || '',
+  ).trim();
+  const email = String(
+    formData.get('email') || elements.createUserEmail.value || '',
+  ).trim();
+  const role = String(
+    formData.get('role') || elements.createUserRole.value || 'user',
+  ).trim();
+  const password = String(
+    formData.get('password') || elements.createUserPassword.value || '',
+  );
+  const isActive =
+    formData.get('isActive') !== null || elements.createUserActive.checked;
 
   const usernameValid = /^[a-zA-Z0-9._-]+$/.test(username);
   markFieldInvalid(elements.createUserUsername, !usernameValid);
@@ -826,12 +840,12 @@ async function onCreateUser(event) {
   const response = await api('/api/admin/users', {
     method: 'POST',
     body: JSON.stringify({
-      username: elements.createUserUsername.value.trim(),
-      displayName: elements.createUserDisplayName.value.trim(),
-      email: elements.createUserEmail.value.trim(),
-      role: elements.createUserRole.value,
-      password: elements.createUserPassword.value,
-      isActive: elements.createUserActive.checked,
+      username: username,
+      displayName: displayName,
+      email: email,
+      role: role,
+      password: password,
+      isActive: isActive,
     }),
   });
 
@@ -846,6 +860,15 @@ async function onCreateUser(event) {
 
   elements.createUserForm.reset();
   elements.createUserActive.checked = true;
+  if (response.user) {
+    state.adminUsers = [response.user].concat(
+      state.adminUsers.filter(function (user) {
+        return String(user.id) !== String(response.user.id);
+      }),
+    );
+    renderAdminUsers();
+    renderOverview();
+  }
   syncCustomSelects(elements.createUserForm);
   clearFieldState(elements.createUserUsername);
   clearFieldState(elements.createUserDisplayName);

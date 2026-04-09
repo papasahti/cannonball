@@ -612,6 +612,24 @@ textarea {
   font-weight: 700;
 }
 
+body[data-theme='day'] .nav-button {
+  background: rgba(94, 71, 54, 0.06);
+  border-color: rgba(94, 71, 54, 0.12);
+}
+
+body[data-theme='day'] .nav-button.active {
+  background: linear-gradient(135deg, rgba(215, 117, 55, 0.2), rgba(194, 96, 35, 0.3));
+  border-color: rgba(194, 96, 35, 0.48);
+  color: #6f3114;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.35),
+    0 10px 24px rgba(194, 96, 35, 0.12);
+}
+
+body[data-theme='day'] .nav-button.active .nav-button-subtitle {
+  color: rgba(111, 49, 20, 0.76);
+}
+
 .nav-button-label {
   display: block;
   font-weight: 700;

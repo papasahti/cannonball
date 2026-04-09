@@ -440,21 +440,42 @@
               <form id="create-user-form" class="admin-form-grid">
                 <label class="field">
                   <span>Логин *</span>
-                  <input id="create-user-username" type="text" placeholder="Например: ivanov" />
+                  <input
+                    id="create-user-username"
+                    name="username"
+                    type="text"
+                    placeholder="Например: ivanov"
+                    autocapitalize="none"
+                    autocorrect="off"
+                    spellcheck="false"
+                  />
                   <span class="field-hint">Только латиница, цифры, точка, дефис или подчёркивание.</span>
                 </label>
                 <label class="field">
                   <span>Имя *</span>
-                  <input id="create-user-display-name" type="text" placeholder="Например: Иван Иванов" />
+                  <input
+                    id="create-user-display-name"
+                    name="displayName"
+                    type="text"
+                    placeholder="Например: Иван Иванов"
+                  />
                 </label>
                 <label class="field">
                   <span>Email *</span>
-                  <input id="create-user-email" type="email" placeholder="Например: ivanov@company.ru" />
+                  <input
+                    id="create-user-email"
+                    name="email"
+                    type="email"
+                    placeholder="Например: ivanov@company.ru"
+                    autocapitalize="none"
+                    autocorrect="off"
+                    spellcheck="false"
+                  />
                 </label>
                 <label class="field">
                   <span>Роль</span>
                   <div class="select-shell">
-                    <select id="create-user-role">
+                    <select id="create-user-role" name="role">
                       <option value="user">Пользователь</option>
                       <option value="admin">Администратор</option>
                     </select>
@@ -464,6 +485,7 @@
                   <span>Пароль *</span>
                   <input
                     id="create-user-password"
+                    name="password"
                     type="password"
                     autocomplete="new-password"
                     placeholder="Минимум 8 символов"
@@ -473,7 +495,7 @@
                 <div class="admin-form-footer">
                   <label class="field inline-field">
                     <span>Активен</span>
-                    <input id="create-user-active" type="checkbox" checked />
+                    <input id="create-user-active" name="isActive" type="checkbox" checked />
                   </label>
                 </div>
                 <div class="form-actions admin-form-actions">
