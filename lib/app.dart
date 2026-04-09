@@ -29,6 +29,13 @@ class Application {
   }
 }
 
+void _authLog(AppConfig config, String message) {
+  if (!config.authDebugLogging) {
+    return;
+  }
+  stderr.writeln('[cannonball][auth] $message');
+}
+
 String resolveBootstrapPasswordHash(AppConfig config) {
   if (config.forceBootstrapAdminPasswordSync &&
       config.bootstrapAdminPassword != null) {
@@ -42,6 +49,10 @@ String resolveBootstrapPasswordHash(AppConfig config) {
 Future<Application> buildApplication() async {
   final config = AppConfig.fromEnvironment();
   final database = DatabaseFactoryRegistry().open(config);
+  _authLog(
+    config,
+    'bootstrap start driver=${config.databaseDriver} username=${config.bootstrapAdminUsername} forceSync=${config.forceBootstrapAdminPasswordSync} passwordProvided=${config.bootstrapAdminPassword != null} passwordHashProvided=${config.bootstrapAdminPasswordHash != null}',
+  );
   await database.initialize();
   final bootstrapPasswordHash = resolveBootstrapPasswordHash(config);
   await database.ensureBootstrapAdmin(
@@ -50,6 +61,13 @@ Future<Application> buildApplication() async {
     email: config.bootstrapAdminEmail,
     passwordHash: bootstrapPasswordHash,
     forcePasswordSync: config.forceBootstrapAdminPasswordSync,
+  );
+  final bootstrapUser = await database.getUserByUsername(
+    config.bootstrapAdminUsername,
+  );
+  _authLog(
+    config,
+    'bootstrap complete username=${config.bootstrapAdminUsername} exists=${bootstrapUser != null} role=${bootstrapUser?['role']} active=${bootstrapUser?['isActive']} provider=${bootstrapUser?['authProvider']}',
   );
 
   final authService = AuthService(

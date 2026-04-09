@@ -19,6 +19,7 @@ void main() {
       bootstrapAdminPassword: password,
       bootstrapAdminPasswordHash: passwordHash,
       forceBootstrapAdminPasswordSync: forceSync,
+      authDebugLogging: false,
       sessionTtl: const Duration(hours: 12),
       secureCookies: false,
       defaultAppTitle: 'cannonball',

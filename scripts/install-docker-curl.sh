@@ -14,6 +14,8 @@ else
   INSTALL_DIR="${CANNONBALL_INSTALL_DIR:-${HOME}/cannonball-docker}"
   DATA_DIR="${CANNONBALL_DATA_DIR:-${HOME}/.local/share/cannonball}"
 fi
+POSTGRES_DATA_DIR="${CANNONBALL_POSTGRES_DATA_DIR:-${DATA_DIR}/postgres}"
+POSTGRES_BACKUP_DIR="${CANNONBALL_POSTGRES_BACKUP_DIR:-${DATA_DIR}/postgres-backups}"
 
 PORT_VALUE="${CANNONBALL_PORT:-8081}"
 PUBLIC_URL="${CANNONBALL_PUBLIC_URL:-http://localhost:${PORT_VALUE}}"
@@ -24,6 +26,9 @@ APP_PASSWORD="${CANNONBALL_APP_PASSWORD:-adminadmin}"
 POSTGRES_DB="${CANNONBALL_POSTGRES_DB:-cannonball}"
 POSTGRES_USER="${CANNONBALL_POSTGRES_USER:-cannonball}"
 POSTGRES_PASSWORD="${CANNONBALL_POSTGRES_PASSWORD:-cannonball}"
+POSTGRES_INITDB_ARGS="${CANNONBALL_POSTGRES_INITDB_ARGS:---data-checksums}"
+POSTGRES_BACKUP_INTERVAL_SECONDS="${CANNONBALL_POSTGRES_BACKUP_INTERVAL_SECONDS:-86400}"
+POSTGRES_BACKUP_KEEP_DAYS="${CANNONBALL_POSTGRES_BACKUP_KEEP_DAYS:-7}"
 
 TMP_DIR=""
 SOURCE_DIR=""
@@ -166,12 +171,16 @@ DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${
 POSTGRES_DB=${POSTGRES_DB}
 POSTGRES_USER=${POSTGRES_USER}
 POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+POSTGRES_INITDB_ARGS=${POSTGRES_INITDB_ARGS}
+POSTGRES_BACKUP_INTERVAL_SECONDS=${POSTGRES_BACKUP_INTERVAL_SECONDS}
+POSTGRES_BACKUP_KEEP_DAYS=${POSTGRES_BACKUP_KEEP_DAYS}
 APP_WEB_ROOT=/app/web
 APP_USERNAME=${ADMIN_LOGIN}
 APP_ADMIN_DISPLAY_NAME=${ADMIN_NAME}
 APP_ADMIN_EMAIL=${ADMIN_EMAIL}
 APP_PASSWORD=adminadmin
 APP_FORCE_BOOTSTRAP_PASSWORD_SYNC=true
+AUTH_DEBUG_LOGGING=true
 ALLOW_INSECURE_COOKIE=true
 SESSION_TTL_HOURS=12
 APP_TITLE=cannonball
@@ -208,8 +217,8 @@ EOF
 }
 
 prepare_runtime_files() {
-  mkdir -p "${DATA_DIR}"
-  chmod 0777 "${DATA_DIR}"
+  mkdir -p "${DATA_DIR}" "${POSTGRES_DATA_DIR}" "${POSTGRES_BACKUP_DIR}"
+  chmod 0777 "${DATA_DIR}" "${POSTGRES_DATA_DIR}" "${POSTGRES_BACKUP_DIR}"
 
   if [[ ! -f "${INSTALL_DIR}/.env" ]]; then
     if [[ -f "${INSTALL_DIR}/.env.example" ]]; then
@@ -225,6 +234,9 @@ prepare_runtime_files() {
   set_env_value "${INSTALL_DIR}/.env" "POSTGRES_DB" "${POSTGRES_DB}"
   set_env_value "${INSTALL_DIR}/.env" "POSTGRES_USER" "${POSTGRES_USER}"
   set_env_value "${INSTALL_DIR}/.env" "POSTGRES_PASSWORD" "${POSTGRES_PASSWORD}"
+  set_env_value "${INSTALL_DIR}/.env" "POSTGRES_INITDB_ARGS" "${POSTGRES_INITDB_ARGS}"
+  set_env_value "${INSTALL_DIR}/.env" "POSTGRES_BACKUP_INTERVAL_SECONDS" "${POSTGRES_BACKUP_INTERVAL_SECONDS}"
+  set_env_value "${INSTALL_DIR}/.env" "POSTGRES_BACKUP_KEEP_DAYS" "${POSTGRES_BACKUP_KEEP_DAYS}"
   set_env_value "${INSTALL_DIR}/.env" "APP_WEB_ROOT" "/app/web"
   set_env_value "${INSTALL_DIR}/.env" "APP_USERNAME" "${ADMIN_LOGIN}"
   set_env_value "${INSTALL_DIR}/.env" "APP_ADMIN_DISPLAY_NAME" "${ADMIN_NAME}"
@@ -232,6 +244,7 @@ prepare_runtime_files() {
   set_env_value "${INSTALL_DIR}/.env" "APP_PASSWORD" "${APP_PASSWORD}"
   set_env_value "${INSTALL_DIR}/.env" "APP_PASSWORD_HASH" ""
   set_env_value "${INSTALL_DIR}/.env" "APP_FORCE_BOOTSTRAP_PASSWORD_SYNC" "true"
+  set_env_value "${INSTALL_DIR}/.env" "AUTH_DEBUG_LOGGING" "true"
   set_env_value "${INSTALL_DIR}/.env" "APP_BASE_URL" "${PUBLIC_URL}"
 
   cat >"${INSTALL_DIR}/docker-compose.override.yml" <<EOF
@@ -242,7 +255,10 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
   postgres:
     volumes:
-      - ${DATA_DIR}:/var/lib/postgresql/data
+      - ${POSTGRES_DATA_DIR}:/var/lib/postgresql/data
+  postgres-backup:
+    volumes:
+      - ${POSTGRES_BACKUP_DIR}:/backups
 EOF
 }
 
@@ -264,6 +280,8 @@ URL: ${PUBLIC_URL}
 Пароль администратора: ${APP_PASSWORD}
 Каталог установки: ${INSTALL_DIR}
 Каталог данных: ${DATA_DIR}
+Каталог данных PostgreSQL: ${POSTGRES_DATA_DIR}
+Каталог резервных копий PostgreSQL: ${POSTGRES_BACKUP_DIR}
 
 Проверка:
   cd ${INSTALL_DIR} && ${COMPOSE_CMD} ps

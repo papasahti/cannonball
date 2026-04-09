@@ -18,6 +18,13 @@ import 'keycloak_service.dart';
 import 'messaging_platform.dart';
 import 'settings_service.dart';
 
+void _authLog(AppConfig config, String message) {
+  if (!config.authDebugLogging) {
+    return;
+  }
+  stderr.writeln('[cannonball][auth] $message');
+}
+
 Handler createHandler({
   required AppConfig config,
   required DatabaseStore database,
@@ -63,6 +70,7 @@ Handler createHandler({
   router.post('/api/login', (Request request) async {
     final settings = await settingsService.load();
     if (!settings.isLocalAuthEnabled) {
+      _authLog(config, 'login denied: local auth disabled');
       return _jsonResponse(HttpStatus.forbidden, {
         'ok': false,
         'error': 'Локальный вход отключён. Используй корпоративный вход через Keycloak.',
@@ -71,11 +79,36 @@ Handler createHandler({
     final payload = await _readJsonBody(request);
     final username = (payload['username'] as String? ?? '').trim();
     final password = (payload['password'] as String? ?? '').trim();
+    _authLog(
+      config,
+      'login attempt username=$username passwordProvided=${password.isNotEmpty}',
+    );
     final user = await authService.authenticate(
       username: username,
       rawPassword: password,
     );
     if (user == null) {
+      final existing = username.isEmpty
+          ? null
+          : await database.getUserByUsername(username);
+      if (existing == null) {
+        _authLog(config, 'login failed username=$username reason=user-not-found');
+      } else if (existing['isActive'] != true) {
+        _authLog(
+          config,
+          'login failed username=$username reason=user-inactive role=${existing['role']} provider=${existing['authProvider']}',
+        );
+      } else if ((existing['authProvider'] as String?) != 'local') {
+        _authLog(
+          config,
+          'login failed username=$username reason=external-auth-provider provider=${existing['authProvider']}',
+        );
+      } else {
+        _authLog(
+          config,
+          'login failed username=$username reason=password-mismatch role=${existing['role']} provider=${existing['authProvider']}',
+        );
+      }
       return _jsonResponse(HttpStatus.unauthorized, {
         'ok': false,
         'error': 'Неверный логин или пароль.',
@@ -83,6 +116,10 @@ Handler createHandler({
     }
 
     final token = await authService.createSession(user);
+    _authLog(
+      config,
+      'login success username=${user.username} role=${user.role} provider=${user.authProvider}',
+    );
     return _jsonResponse(
       HttpStatus.ok,
       {'ok': true, 'user': user.toJson()},

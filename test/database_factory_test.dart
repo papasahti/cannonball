@@ -52,6 +52,7 @@ AppConfig _config({
     bootstrapAdminPassword: 'adminadmin',
     bootstrapAdminPasswordHash: null,
     forceBootstrapAdminPasswordSync: false,
+    authDebugLogging: false,
     sessionTtl: const Duration(hours: 12),
     secureCookies: false,
     defaultAppTitle: 'cannonball',

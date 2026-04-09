@@ -21,18 +21,74 @@ services:
 
   postgres:
     image: postgres:17-alpine
+    init: true
     restart: unless-stopped
+    stop_grace_period: 60s
+    shm_size: 256mb
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-cannonball}
       POSTGRES_USER: ${POSTGRES_USER:-cannonball}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cannonball}
+      POSTGRES_INITDB_ARGS: ${POSTGRES_INITDB_ARGS:---data-checksums}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    command:
+      - postgres
+      - -c
+      - wal_level=replica
+      - -c
+      - max_wal_size=1GB
+      - -c
+      - min_wal_size=80MB
+      - -c
+      - shared_buffers=256MB
+      - -c
+      - checkpoint_completion_target=0.9
+      - -c
+      - synchronous_commit=on
+      - -c
+      - fsync=on
+      - -c
+      - full_page_writes=on
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
       interval: 10s
       timeout: 5s
       retries: 10
+      start_period: 20s
     volumes:
       - cannonball_pg_data:/var/lib/postgresql/data
+  postgres-backup:
+    image: postgres:17-alpine
+    init: true
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-cannonball}
+      POSTGRES_USER: ${POSTGRES_USER:-cannonball}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cannonball}
+      POSTGRES_BACKUP_INTERVAL_SECONDS: ${POSTGRES_BACKUP_INTERVAL_SECONDS:-86400}
+      POSTGRES_BACKUP_KEEP_DAYS: ${POSTGRES_BACKUP_KEEP_DAYS:-7}
+    entrypoint:
+      - /bin/sh
+      - -ec
+    command: >
+      mkdir -p /backups;
+      while true; do
+        ts="$$(date -u +%Y%m%dT%H%M%SZ)";
+        PGPASSWORD="$$POSTGRES_PASSWORD" pg_dump
+        -h postgres
+        -U "$$POSTGRES_USER"
+        -d "$$POSTGRES_DB"
+        -Fc
+        -f "/backups/$$POSTGRES_DB-$$ts.dump";
+        find /backups -type f -name '*.dump' -mtime +$$POSTGRES_BACKUP_KEEP_DAYS -delete;
+        sleep "$$POSTGRES_BACKUP_INTERVAL_SECONDS";
+      done
+    volumes:
+      - cannonball_pg_backups:/backups
 
 volumes:
   cannonball_pg_data:
+  cannonball_pg_backups:
