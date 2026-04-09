@@ -23,6 +23,18 @@ void main() {
         throwsA(isA<StateError>()),
       );
     });
+
+    test('postgres store accepts docker-style url without explicit sslmode', () {
+      final store = PostgresDatabaseStore(
+        connectionUrl:
+            'postgresql://cannonball:cannonball@postgres:5432/cannonball',
+      );
+
+      expect(
+        store.normalizeForTest(),
+        'postgresql://cannonball:cannonball@postgres:5432/cannonball?sslmode=disable',
+      );
+    });
   });
 }
 

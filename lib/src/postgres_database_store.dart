@@ -15,7 +15,7 @@ class PostgresDatabaseStore implements DatabaseStore {
 
   @override
   Future<void> initialize() async {
-    _pool ??= Pool.withUrl(connectionUrl);
+    _pool ??= Pool.withUrl(_normalizeConnectionUrl(connectionUrl));
     await _db.execute('SET TIME ZONE \'UTC\'', ignoreRows: true);
     await _initializeMigrationTable();
     await _runMigrations();
@@ -1593,6 +1593,20 @@ class PostgresDatabaseStore implements DatabaseStore {
       apply: (store) => store._createFullSchema(),
     ),
   ];
+
+  String _normalizeConnectionUrl(String rawUrl) {
+    final uri = Uri.parse(rawUrl);
+    if (uri.queryParameters.containsKey('sslmode')) {
+      return rawUrl;
+    }
+
+    final nextQueryParameters = Map<String, String>.from(uri.queryParameters)
+      ..['sslmode'] = 'disable';
+
+    return uri.replace(queryParameters: nextQueryParameters).toString();
+  }
+
+  String normalizeForTest() => _normalizeConnectionUrl(connectionUrl);
 }
 
 const String _inboundRuleListQuery = '''
