@@ -19,6 +19,22 @@ services:
     restart: unless-stopped
     stop_grace_period: 30s
 
+  nginx:
+    image: nginx:1.27-alpine
+    profiles: ['nginx']
+    restart: unless-stopped
+    depends_on:
+      cannonball:
+        condition: service_healthy
+    environment:
+      NGINX_SERVER_NAME: ${NGINX_SERVER_NAME:-localhost}
+    volumes:
+      - ./docker/nginx/default.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - ${NGINX_CERTS_DIR:-./docker/nginx/certs}:/etc/nginx/certs:ro
+    ports:
+      - '${NGINX_HTTP_PORT:-80}:80'
+      - '${NGINX_HTTPS_PORT:-443}:443'
+
   postgres:
     image: postgres:17-alpine
     init: true

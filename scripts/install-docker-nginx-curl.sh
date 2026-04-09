@@ -178,6 +178,11 @@ install_source() {
 write_default_env() {
   cat >"${INSTALL_DIR}/.env" <<EOF
 PORT=${APP_PORT}
+COMPOSE_PROFILES=nginx
+NGINX_SERVER_NAME=${PUBLIC_HOST}
+NGINX_HTTP_PORT=${HTTP_PORT}
+NGINX_HTTPS_PORT=${HTTPS_PORT}
+NGINX_CERTS_DIR=${NGINX_DIR}/certs
 DATABASE_DRIVER=postgres
 DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
 POSTGRES_DB=${POSTGRES_DB}
@@ -229,14 +234,13 @@ EOF
 }
 
 prepare_nginx_files() {
-  local cert_dir conf_dir cert_file key_file
+  local cert_dir cert_file key_file
 
   cert_dir="${NGINX_DIR}/certs"
-  conf_dir="${NGINX_DIR}/conf.d"
   cert_file="${cert_dir}/server.crt"
   key_file="${cert_dir}/server.key"
 
-  mkdir -p "${cert_dir}" "${conf_dir}"
+  mkdir -p "${cert_dir}"
 
   cat >"${NGINX_DIR}/README.txt" <<EOF
 Каталог для nginx перед cannonball.
@@ -259,39 +263,6 @@ EOF
       -days 365 \
       -subj "/CN=${PUBLIC_HOST}" >/dev/null 2>&1
   fi
-
-  cat >"${conf_dir}/default.conf" <<EOF
-server {
-    listen 80;
-    server_name ${PUBLIC_HOST};
-    return 301 https://\$host\$request_uri;
-}
-
-server {
-    listen 443 ssl http2;
-    server_name ${PUBLIC_HOST};
-
-    ssl_certificate /etc/nginx/certs/server.crt;
-    ssl_certificate_key /etc/nginx/certs/server.key;
-    ssl_session_cache shared:SSL:10m;
-    ssl_session_timeout 10m;
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_prefer_server_ciphers on;
-
-    client_max_body_size 32m;
-
-    location / {
-        proxy_pass http://cannonball:${APP_PORT};
-        proxy_http_version 1.1;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto https;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection "upgrade";
-    }
-}
-EOF
 }
 
 prepare_runtime_files() {
@@ -307,6 +278,11 @@ prepare_runtime_files() {
   fi
 
   set_env_value "${INSTALL_DIR}/.env" "PORT" "${APP_PORT}"
+  set_env_value "${INSTALL_DIR}/.env" "COMPOSE_PROFILES" "nginx"
+  set_env_value "${INSTALL_DIR}/.env" "NGINX_SERVER_NAME" "${PUBLIC_HOST}"
+  set_env_value "${INSTALL_DIR}/.env" "NGINX_HTTP_PORT" "${HTTP_PORT}"
+  set_env_value "${INSTALL_DIR}/.env" "NGINX_HTTPS_PORT" "${HTTPS_PORT}"
+  set_env_value "${INSTALL_DIR}/.env" "NGINX_CERTS_DIR" "${NGINX_DIR}/certs"
   set_env_value "${INSTALL_DIR}/.env" "DATABASE_DRIVER" "postgres"
   set_env_value "${INSTALL_DIR}/.env" "DATABASE_URL" "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}"
   set_env_value "${INSTALL_DIR}/.env" "POSTGRES_DB" "${POSTGRES_DB}"
@@ -343,15 +319,12 @@ services:
     volumes:
       - ${POSTGRES_BACKUP_DIR}:/backups
   nginx:
-    image: nginx:1.27-alpine
-    restart: unless-stopped
-    depends_on:
-      - cannonball
+    environment:
+      NGINX_SERVER_NAME: ${PUBLIC_HOST}
     ports:
       - "${HTTP_PORT}:80"
       - "${HTTPS_PORT}:443"
     volumes:
-      - ${NGINX_DIR}/conf.d:/etc/nginx/conf.d:ro
       - ${NGINX_DIR}/certs:/etc/nginx/certs:ro
 EOF
 }
@@ -360,7 +333,7 @@ start_stack() {
   log "Поднимаю Docker-стек..."
   (
     cd "${INSTALL_DIR}"
-    ${COMPOSE_CMD} up -d --build
+    COMPOSE_PROFILES=nginx ${COMPOSE_CMD} up -d --build
   )
 }
 
@@ -385,7 +358,7 @@ TLS ключ: ${NGINX_DIR}/certs/server.key
   curl -k -fsSL ${PUBLIC_URL}/health
 
 Если заменишь сертификат и ключ своими файлами, перезапусти стек:
-  cd ${INSTALL_DIR} && ${COMPOSE_CMD} up -d --build
+  cd ${INSTALL_DIR} && COMPOSE_PROFILES=nginx ${COMPOSE_CMD} up -d --build
 EOF
 }
 
