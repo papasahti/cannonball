@@ -1393,32 +1393,49 @@ body[data-theme='night'] .settings-nav-button {
 
 .admin-form-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns:
+    minmax(150px, 0.95fr)
+    minmax(170px, 1fr)
+    minmax(170px, 1fr)
+    minmax(150px, 0.9fr)
+    minmax(180px, 1fr)
+    minmax(210px, auto);
   gap: 14px;
-  align-items: end;
+  align-items: start;
   width: 100%;
   min-width: 0;
 }
 
-.admin-form-footer {
-  display: flex;
-  align-items: end;
+.admin-form-grid .field {
+  margin: 0;
 }
 
-.admin-form-actions {
-  justify-content: flex-start;
+.admin-form-submit {
+  display: grid;
+  gap: 12px;
   align-self: end;
-  margin-top: 0;
 }
 
-.admin-form-actions .primary-button {
-  min-width: 196px;
+.admin-form-submit .primary-button {
+  width: 100%;
+  min-width: 0;
+}
+
+.admin-form-active {
+  min-height: 48px;
+  padding: 0 2px;
+  align-items: center;
 }
 
 .form-status-block {
   display: grid;
   gap: 4px;
-  min-width: min(100%, 340px);
+  min-width: 0;
+}
+
+.admin-form-status {
+  grid-column: 1 / -1;
+  margin-top: 2px;
 }
 
 .form-hint {
@@ -1926,7 +1943,21 @@ body[data-theme='night'] .settings-nav-button {
     grid-template-columns: 1fr;
   }
 
-  .admin-form-grid,
+  .admin-form-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .admin-form-submit,
+  .admin-form-status {
+    grid-column: 1 / -1;
+  }
+
+  .admin-form-submit {
+    grid-template-columns: auto minmax(220px, 280px);
+    align-items: center;
+    justify-content: start;
+  }
+
   .compact-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -2043,6 +2074,10 @@ body[data-theme='night'] .settings-nav-button {
 
   .admin-form-grid,
   .compact-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-form-submit {
     grid-template-columns: 1fr;
   }
 

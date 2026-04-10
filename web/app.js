@@ -1517,49 +1517,10 @@ function renderPageContext() {
   }
 
   elements.pageTitle.textContent = config.title || config.label;
-  if (isAdmin()) {
-    elements.pageSubtitle.textContent = config.description || '';
-    elements.pageSubtitle.classList.toggle('hidden', !config.description);
-  } else {
-    elements.pageSubtitle.textContent = '';
-    elements.pageSubtitle.classList.add('hidden');
-  }
-
-  if (!isAdmin()) {
-    elements.pageMeta.innerHTML = '';
-    return;
-  }
-
-  const meta = [];
-  meta.push('Административный контур');
-  if (config.id === 'compose' && state.appSettings) {
-    meta.push('Маршрут: ' + formatDeliveryMode(state.appSettings.deliveryMode));
-  }
-  if (config.id === 'history') {
-    meta.push('Запусков в ленте: ' + String(state.history.length));
-  }
-  if (config.id === 'admin-users') {
-    meta.push('Локальных аккаунтов: ' + String(state.adminUsers.length || 0));
-  }
-  if (config.id === 'admin-integrations') {
-    meta.push(
-      'Интеграций в каталоге: ' + String(state.adminIntegrations.length || 0),
-    );
-    if (state.adminDelivery && state.adminDelivery.mode) {
-      meta.push('Маршрут: ' + formatDeliveryMode(state.adminDelivery.mode));
-    }
-  }
-  if (config.id === 'admin-settings' && state.adminSettings) {
-    meta.push(
-      'Активная секция: ' + formatSettingsPanelLabel(state.currentSettingsPanel),
-    );
-  }
-
-  elements.pageMeta.innerHTML = meta
-    .map(function (item) {
-      return '<span class="page-meta-pill">' + escapeHtml(item) + '</span>';
-    })
-    .join('');
+  elements.pageSubtitle.textContent = '';
+  elements.pageSubtitle.classList.add('hidden');
+  elements.pageMeta.innerHTML = '';
+  elements.pageMeta.classList.add('hidden');
 }
 
 function renderSettingsSummary() {

@@ -117,10 +117,10 @@
               <span id="app-title-badge">cannonball</span>
             </div>
             <h1 id="page-title">Центр рассылки</h1>
-            <p class="muted" id="page-subtitle">
+            <p class="muted hidden" id="page-subtitle">
               Платформа для адресных уведомлений, командных объявлений и управляемых маршрутов доставки.
             </p>
-            <div id="page-meta" class="page-meta"></div>
+            <div id="page-meta" class="page-meta hidden"></div>
           </div>
           <div class="topbar-actions">
             <div class="user-cabinet panel">
@@ -449,7 +449,6 @@
                     autocorrect="off"
                     spellcheck="false"
                   />
-                  <span class="field-hint">Только латиница, цифры, точка, дефис или подчёркивание.</span>
                 </label>
                 <label class="field">
                   <span>Имя *</span>
@@ -490,20 +489,20 @@
                     autocomplete="new-password"
                     placeholder="Минимум 8 символов"
                   />
-                  <span class="field-hint">Лучше сразу задать временный пароль и попросить сменить его после входа.</span>
                 </label>
-                <div class="admin-form-footer">
-                  <label class="field inline-field">
+                <div class="admin-form-submit">
+                  <label class="field inline-field admin-form-active">
                     <span>Активен</span>
                     <input id="create-user-active" name="isActive" type="checkbox" checked />
                   </label>
-                </div>
-                <div class="form-actions admin-form-actions">
                   <button class="primary-button" type="submit">Добавить пользователя</button>
-                  <div class="form-status-block">
-                    <p class="form-hint muted">Для создания нужны логин, имя, email и пароль.</p>
-                    <p id="create-user-status" class="muted"></p>
-                  </div>
+                </div>
+                <div class="form-status-block admin-form-status">
+                  <p class="form-hint muted">
+                    Для создания нужны логин, имя, email и пароль. В логине можно использовать только латиницу,
+                    цифры, точку, дефис и подчёркивание.
+                  </p>
+                  <p id="create-user-status" class="muted"></p>
                 </div>
               </form>
 
