@@ -150,6 +150,14 @@ body[data-theme='night'] {
   display: none !important;
 }
 
+.topbar-context #page-meta {
+  display: none !important;
+}
+
+.topbar-context #page-subtitle {
+  display: none !important;
+}
+
 .auth-panel {
   width: min(100%, 480px);
   margin: 8vh auto 0;
@@ -1411,20 +1419,25 @@ body[data-theme='night'] .settings-nav-button {
 }
 
 .admin-form-submit {
-  display: grid;
-  gap: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 16px;
   align-self: end;
+  min-height: 48px;
 }
 
 .admin-form-submit .primary-button {
-  width: 100%;
-  min-width: 0;
+  width: auto;
+  min-width: 220px;
 }
 
 .admin-form-active {
   min-height: 48px;
-  padding: 0 2px;
+  padding: 0;
   align-items: center;
+  margin: 0;
+  white-space: nowrap;
 }
 
 .form-status-block {
@@ -1943,21 +1956,6 @@ body[data-theme='night'] .settings-nav-button {
     grid-template-columns: 1fr;
   }
 
-  .admin-form-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .admin-form-submit,
-  .admin-form-status {
-    grid-column: 1 / -1;
-  }
-
-  .admin-form-submit {
-    grid-template-columns: auto minmax(220px, 280px);
-    align-items: center;
-    justify-content: start;
-  }
-
   .compact-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1988,6 +1986,22 @@ body[data-theme='night'] .settings-nav-button {
   .admin-rule-layout,
   .admin-rule-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1040px) {
+  .admin-form-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .admin-form-submit,
+  .admin-form-status {
+    grid-column: 1 / -1;
+  }
+
+  .admin-form-submit {
+    justify-content: flex-start;
+    flex-wrap: nowrap;
   }
 }
 
@@ -2078,7 +2092,13 @@ body[data-theme='night'] .settings-nav-button {
   }
 
   .admin-form-submit {
-    grid-template-columns: 1fr;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .admin-form-submit .primary-button {
+    width: 100%;
+    min-width: 0;
   }
 
   .user-cabinet {
