@@ -34,18 +34,32 @@ class IntegrationRegistry {
 
   final SettingsService settingsService;
 
-  MessagingPlatformAdapter? buildAudiencePlatform(AppSettings settings) {
-    if (settings.isMattermostConfigured) {
+  MessagingPlatformAdapter? buildAudiencePlatform(
+    AppSettings settings, {
+    String? mattermostBotId,
+  }) {
+    final mattermostClient = mattermostBotId != null
+        ? settingsService.buildMattermostClientForBot(settings, mattermostBotId)
+        : settingsService.buildMattermostClient(settings);
+    if (mattermostClient != null &&
+        mattermostClient.baseUrl.trim().isNotEmpty &&
+        mattermostClient.token.trim().isNotEmpty) {
       return MattermostMessagingPlatformAdapter(
-        settingsService.buildMattermostClient(settings),
+        mattermostClient,
       );
     }
     return null;
   }
 
-  DeliveryRouter? buildDeliveryRouter(AppSettings settings) {
+  DeliveryRouter? buildDeliveryRouter(
+    AppSettings settings, {
+    String? mattermostBotId,
+  }) {
     if (settings.deliveryMode == 'mattermost') {
-      final platform = buildAudiencePlatform(settings);
+      final platform = buildAudiencePlatform(
+        settings,
+        mattermostBotId: mattermostBotId,
+      );
       if (platform == null) {
         return null;
       }

@@ -242,6 +242,13 @@
                         <p class="muted">Коротко и по делу. Лучше один понятный посыл на одну рассылку.</p>
                       </div>
                     </div>
+                    <label id="composer-bot-field" class="field hidden">
+                      <span>Бот Mattermost</span>
+                      <div class="select-shell">
+                        <select id="composer-bot-select"></select>
+                      </div>
+                      <span class="field-hint">Если подключено несколько ботов, можно выбрать, от какого из них уйдёт рассылка.</span>
+                    </label>
                     <label class="field">
                       <span>Текст рассылки</span>
                       <textarea
@@ -707,33 +714,13 @@
                           <p class="muted">Настройки каталога аудитории и прямой доставки сообщений через API.</p>
                         </div>
                       </div>
-                      <div class="settings-fields">
-                        <label class="field">
-                          <span>Адрес сервера</span>
-                          <input id="settings-mm-base-url" type="url" />
-                        </label>
-                        <label class="field">
-                          <span>Команда Mattermost</span>
-                          <input id="settings-mm-team-name" type="text" placeholder="Например: platform" />
-                        </label>
-                        <label class="field settings-field-wide">
-                          <span>Токен бота</span>
-                          <input
-                            id="settings-mm-token"
-                            type="password"
-                            autocomplete="off"
-                            autocapitalize="none"
-                            autocorrect="off"
-                            spellcheck="false"
-                            data-1p-ignore="true"
-                            data-lpignore="true"
-                          />
-                        </label>
-                        <label class="field">
-                          <span>ID команды</span>
-                          <input id="settings-mm-team-id" type="text" placeholder="Внутренний идентификатор команды Mattermost" />
-                        </label>
+                      <div class="settings-panel-toolbar">
+                        <p class="muted">Можно добавить несколько ботов и выбрать, какой из них будет основным для каталога и отправки.</p>
+                        <button id="settings-mm-add-bot" class="ghost-button subtle-button" type="button">
+                          Добавить бота
+                        </button>
                       </div>
+                      <div id="settings-mm-bots-list" class="settings-bot-list"></div>
                     </section>
 
                     <section class="settings-panel target-section hidden" data-settings-section="n8n">

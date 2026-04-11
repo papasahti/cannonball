@@ -47,6 +47,7 @@ class CampaignDeliveryService {
     required List<Map<String, Object?>> rawUsers,
     required List<Map<String, Object?>> rawGroups,
     required List<String> rawChannels,
+    String? mattermostBotId,
   }) async {
     final targets = buildTargets(
       rawUsers: rawUsers,
@@ -63,7 +64,10 @@ class CampaignDeliveryService {
       channels: rawChannels,
     );
 
-    final router = registry.buildDeliveryRouter(settings);
+    final router = registry.buildDeliveryRouter(
+      settings,
+      mattermostBotId: mattermostBotId,
+    );
     if (router == null) {
       throw DeliveryRouterException(
         registry.validateDeliveryConfiguration(settings) ??
@@ -76,7 +80,10 @@ class CampaignDeliveryService {
     var sentCount = 0;
     var failedCount = 0;
 
-    final platform = registry.buildAudiencePlatform(settings);
+    final platform = registry.buildAudiencePlatform(
+      settings,
+      mattermostBotId: mattermostBotId,
+    );
 
     for (final target in targets) {
       if (target.type == 'group' &&

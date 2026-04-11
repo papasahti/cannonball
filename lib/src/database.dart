@@ -321,6 +321,11 @@ class AppDatabase {
     return result.first['total'] as int;
   }
 
+  void deleteUser(int id) {
+    db.execute('DELETE FROM settings WHERE key LIKE ?', ['user.$id.%']);
+    db.execute('DELETE FROM users WHERE id = ?', [id]);
+  }
+
   void insertSession({
     required String token,
     required int userId,

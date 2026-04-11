@@ -321,6 +321,22 @@ class PostgresDatabaseStore implements DatabaseStore {
   }
 
   @override
+  Future<void> deleteUser(int id) async {
+    await _db.runTx((session) async {
+      await session.execute(
+        r'DELETE FROM settings WHERE key LIKE $1',
+        parameters: ['user.$id.%'],
+        ignoreRows: true,
+      );
+      await session.execute(
+        r'DELETE FROM users WHERE id = $1',
+        parameters: [id],
+        ignoreRows: true,
+      );
+    });
+  }
+
+  @override
   Future<void> insertSession({
     required String token,
     required int userId,

@@ -57,6 +57,7 @@ abstract class DatabaseStore {
   });
 
   Future<int> countActiveAdmins();
+  Future<void> deleteUser(int id);
 
   Future<void> insertSession({
     required String token,
@@ -321,6 +322,9 @@ class SqliteDatabaseStore implements DatabaseStore {
 
   @override
   Future<int> countActiveAdmins() async => _database.countActiveAdmins();
+
+  @override
+  Future<void> deleteUser(int id) async => _database.deleteUser(id);
 
   @override
   Future<void> insertSession({

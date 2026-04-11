@@ -75,6 +75,7 @@ const state = {
   selectedUsers: [],
   selectedGroups: [],
   selectedChannels: [],
+  selectedMattermostBotId: '',
   theme: readStoredTheme() || 'day',
   currentUser: null,
   appSettings: null,
@@ -154,6 +155,8 @@ const elements = {
   composerGroupsCount: document.getElementById('composer-groups-count'),
   composerChannelsCount: document.getElementById('composer-channels-count'),
   composerRoute: document.getElementById('composer-route'),
+  composerBotField: document.getElementById('composer-bot-field'),
+  composerBotSelect: document.getElementById('composer-bot-select'),
   historyRefresh: document.getElementById('history-refresh'),
   historySearch: document.getElementById('history-search'),
   historyStatusFilter: document.getElementById('history-status-filter'),
@@ -203,10 +206,8 @@ const elements = {
   settingsAppTitle: document.getElementById('settings-app-title'),
   settingsDeliveryMode: document.getElementById('settings-delivery-mode'),
   settingsDefaultChannels: document.getElementById('settings-default-channels'),
-  settingsMmBaseUrl: document.getElementById('settings-mm-base-url'),
-  settingsMmToken: document.getElementById('settings-mm-token'),
-  settingsMmTeamId: document.getElementById('settings-mm-team-id'),
-  settingsMmTeamName: document.getElementById('settings-mm-team-name'),
+  settingsMmBotsList: document.getElementById('settings-mm-bots-list'),
+  settingsMmAddBot: document.getElementById('settings-mm-add-bot'),
   settingsN8nBaseUrl: document.getElementById('settings-n8n-base-url'),
   settingsN8nWebhookUrl: document.getElementById('settings-n8n-webhook-url'),
   settingsN8nApiKey: document.getElementById('settings-n8n-api-key'),
@@ -306,6 +307,12 @@ function bindEvents() {
     handleSearchNavigation(event, elements.channelResults, 'channel');
   });
   elements.sendButton.addEventListener('click', onSend);
+  if (elements.composerBotSelect) {
+    elements.composerBotSelect.addEventListener('change', function () {
+      state.selectedMattermostBotId = elements.composerBotSelect.value;
+      renderComposerSummary();
+    });
+  }
   elements.historyRefresh.addEventListener('click', function () {
     loadHistory();
   });
@@ -362,6 +369,18 @@ function bindEvents() {
     });
   }
   elements.settingsForm.addEventListener('submit', onSaveSettings);
+  if (elements.settingsMmAddBot) {
+    elements.settingsMmAddBot.addEventListener('click', function () {
+      addMattermostBot();
+    });
+  }
+  elements.settingsForm.addEventListener('click', function (event) {
+    const removeButton = event.target.closest('[data-remove-mm-bot]');
+    if (!removeButton) {
+      return;
+    }
+    removeMattermostBot(removeButton.getAttribute('data-remove-mm-bot'));
+  });
   elements.settingsNavButtons.forEach(function (button) {
     button.addEventListener('click', function () {
       switchSettingsPanel(button.getAttribute('data-settings-panel'));
@@ -542,6 +561,10 @@ async function loadConfig() {
 
   state.currentUser = response.user;
   state.appSettings = response.settings;
+  if (!state.selectedMattermostBotId) {
+    state.selectedMattermostBotId =
+      response.settings.activeMattermostBotId || '';
+  }
   if (!state.selectedChannels.length) {
     const channels = response.settings.defaultChannels || [];
     for (let index = 0; index < channels.length; index += 1) {
@@ -559,6 +582,70 @@ async function loadConfig() {
   renderSelectedAudience();
   renderOverview();
   renderSettingsSummary();
+  syncComposerMattermostBots();
+}
+
+function getAvailableMattermostBots() {
+  const settings = state.appSettings || state.publicSettings || {};
+  const bots = Array.isArray(settings.mattermostBots)
+    ? settings.mattermostBots
+    : [];
+  const configuredBots = bots.filter(function (item) {
+    return item && item.configured !== false;
+  });
+  if (isAdmin()) {
+    return configuredBots;
+  }
+  const allowedBotIds = Array.isArray(state.currentUser && state.currentUser.allowedBotIds)
+    ? state.currentUser.allowedBotIds
+    : [];
+  if (!allowedBotIds.length) {
+    return configuredBots.length <= 1 ? configuredBots : [];
+  }
+  return configuredBots.filter(function (item) {
+    return allowedBotIds.includes(item.id);
+  });
+}
+
+function syncComposerMattermostBots() {
+  if (!elements.composerBotField || !elements.composerBotSelect) {
+    return;
+  }
+
+  const bots = getAvailableMattermostBots();
+  const shouldShow =
+    !!state.appSettings &&
+    state.appSettings.deliveryMode === 'mattermost' &&
+    bots.length > 1;
+
+  elements.composerBotField.classList.toggle('hidden', !shouldShow);
+  if (!shouldShow) {
+    elements.composerBotSelect.innerHTML = '';
+    return;
+  }
+
+  const activeBotId =
+    state.selectedMattermostBotId ||
+    (state.currentUser && state.currentUser.preferredBotId) ||
+    (state.appSettings && state.appSettings.activeMattermostBotId) ||
+    bots[0].id;
+  state.selectedMattermostBotId = activeBotId;
+
+  elements.composerBotSelect.innerHTML = bots
+    .map(function (bot) {
+      return (
+        '<option value="' +
+        escapeHtml(bot.id) +
+        '"' +
+        (bot.id === activeBotId ? ' selected' : '') +
+        '>' +
+        escapeHtml(bot.name || bot.teamName || bot.id) +
+        '</option>'
+      );
+    })
+    .join('');
+
+  syncCustomSelects(elements.composerBotField);
 }
 
 async function loadAudience() {
@@ -677,6 +764,7 @@ async function onSend() {
     users: state.selectedUsers,
     groups: state.selectedGroups,
     channels: state.selectedChannels,
+    mattermostBotId: state.selectedMattermostBotId || '',
   };
 
   const response = await api('/api/send', {
@@ -890,6 +978,10 @@ async function onSaveManagedUser(id) {
     role: card.querySelector('[data-field="role"]').value,
     isActive: card.querySelector('[data-field="isActive"]').checked,
     password: card.querySelector('[data-field="password"]').value,
+    allowedBotIds: splitCommaList(
+      card.querySelector('[data-field="allowedBotIds"]').value,
+    ),
+    preferredBotId: card.querySelector('[data-field="preferredBotId"]').value,
   };
 
   const statusNode = card.querySelector('[data-user-status]');
@@ -907,6 +999,40 @@ async function onSaveManagedUser(id) {
 
   statusNode.textContent = 'Изменения пользователя сохранены.';
   await loadAdminUsers();
+}
+
+async function onDeleteManagedUser(id) {
+  const card = document.querySelector('[data-user-card="' + id + '"]');
+  if (!card) {
+    return;
+  }
+
+  const username = card.getAttribute('data-user-username') || 'пользователя';
+  const confirmed = window.confirm(
+    'Удалить пользователя @' + username + '? Это действие нельзя отменить.',
+  );
+  if (!confirmed) {
+    return;
+  }
+
+  const statusNode = card.querySelector('[data-user-status]');
+  statusNode.textContent = 'Удаляю пользователя...';
+
+  const response = await api('/api/admin/users/' + id, {
+    method: 'DELETE',
+  });
+
+  if (!response.ok) {
+    statusNode.textContent =
+      response.error || 'Не удалось удалить пользователя.';
+    return;
+  }
+
+  state.adminUsers = state.adminUsers.filter(function (user) {
+    return String(user.id) !== String(id);
+  });
+  renderAdminUsers();
+  renderOverview();
 }
 
 async function loadAdminSettings() {
@@ -1070,6 +1196,8 @@ async function onSaveRule(id) {
 async function onSaveSettings(event) {
   event.preventDefault();
   elements.settingsStatus.textContent = 'Сохраняю конфигурацию платформы...';
+  const mattermostBots = readMattermostBotsFromForm();
+  const activeMattermostBotId = getActiveMattermostBotId(mattermostBots);
 
   const response = await api('/api/admin/settings', {
     method: 'PUT',
@@ -1077,10 +1205,8 @@ async function onSaveSettings(event) {
       appTitle: elements.settingsAppTitle.value.trim(),
       deliveryMode: elements.settingsDeliveryMode.value,
       defaultChannels: splitCommaList(elements.settingsDefaultChannels.value),
-      mattermostBaseUrl: elements.settingsMmBaseUrl.value.trim(),
-      mattermostToken: elements.settingsMmToken.value.trim(),
-      mattermostTeamId: elements.settingsMmTeamId.value.trim(),
-      mattermostTeamName: elements.settingsMmTeamName.value.trim(),
+      mattermostBots: mattermostBots,
+      activeMattermostBotId: activeMattermostBotId,
       n8nBaseUrl: elements.settingsN8nBaseUrl.value.trim(),
       n8nWebhookUrl: elements.settingsN8nWebhookUrl.value.trim(),
       n8nApiKey: elements.settingsN8nApiKey.value.trim(),
@@ -1256,11 +1382,10 @@ function fillSettingsForm() {
   elements.settingsDefaultChannels.value = (
     state.adminSettings.defaultChannels || []
   ).join(', ');
-  elements.settingsMmBaseUrl.value = state.adminSettings.mattermostBaseUrl || '';
-  elements.settingsMmToken.value = state.adminSettings.mattermostToken || '';
-  elements.settingsMmTeamId.value = state.adminSettings.mattermostTeamId || '';
-  elements.settingsMmTeamName.value =
-    state.adminSettings.mattermostTeamName || '';
+  renderMattermostBotsEditor(
+    normalizeMattermostBots(state.adminSettings),
+    state.adminSettings.activeMattermostBotId || '',
+  );
   elements.settingsN8nBaseUrl.value = state.adminSettings.n8nBaseUrl || '';
   elements.settingsN8nWebhookUrl.value =
     state.adminSettings.n8nWebhookUrl || '';
@@ -1290,6 +1415,200 @@ function fillSettingsForm() {
   elements.settingsKeycloakAdminRole.value =
     state.adminSettings.keycloakAdminRole || 'cannonball-admin';
   syncCustomSelects(document);
+}
+
+function normalizeMattermostBots(settings) {
+  const bots = Array.isArray(settings.mattermostBots)
+    ? settings.mattermostBots
+    : [];
+  if (bots.length) {
+    return bots.map(function (item, index) {
+      const id = String(item.id || 'bot-' + String(index + 1)).trim();
+      return {
+        id: id,
+        name: String(item.name || '').trim() || 'Бот ' + String(index + 1),
+        baseUrl: String(item.baseUrl || '').trim(),
+        token: String(item.token || '').trim(),
+        teamId: String(item.teamId || '').trim(),
+        teamName: String(item.teamName || '').trim(),
+      };
+    });
+  }
+  if (
+    settings.mattermostBaseUrl ||
+    settings.mattermostToken ||
+    settings.mattermostTeamId ||
+    settings.mattermostTeamName
+  ) {
+    return [
+      {
+        id: 'primary',
+        name: 'Основной бот',
+        baseUrl: String(settings.mattermostBaseUrl || '').trim(),
+        token: String(settings.mattermostToken || '').trim(),
+        teamId: String(settings.mattermostTeamId || '').trim(),
+        teamName: String(settings.mattermostTeamName || '').trim(),
+      },
+    ];
+  }
+  return [
+    {
+      id: 'primary',
+      name: 'Основной бот',
+      baseUrl: '',
+      token: '',
+      teamId: '',
+      teamName: '',
+    },
+  ];
+}
+
+function renderMattermostBotsEditor(bots, activeBotId) {
+  if (!elements.settingsMmBotsList) {
+    return;
+  }
+  const safeBots = bots.length ? bots : normalizeMattermostBots({});
+  const resolvedActiveId =
+    safeBots.some(function (item) {
+      return item.id === activeBotId;
+    })
+      ? activeBotId
+      : safeBots[0].id;
+
+  elements.settingsMmBotsList.innerHTML = safeBots
+    .map(function (bot, index) {
+      const botName = bot.name || 'Бот ' + String(index + 1);
+      return (
+        '<article class="settings-bot-card" data-mm-bot-card data-bot-id="' +
+        escapeHtml(bot.id) +
+        '">' +
+        '<div class="settings-bot-card-head">' +
+        '<label class="settings-bot-active">' +
+        '<input type="radio" name="active-mm-bot" value="' +
+        escapeHtml(bot.id) +
+        '"' +
+        (resolvedActiveId === bot.id ? ' checked' : '') +
+        ' />' +
+        '<span>Основной бот</span>' +
+        '</label>' +
+        '<button class="ghost-button subtle-button" type="button" data-remove-mm-bot="' +
+        escapeHtml(bot.id) +
+        '"' +
+        (safeBots.length === 1 ? ' disabled' : '') +
+        '>Удалить</button>' +
+        '</div>' +
+        '<div class="settings-fields">' +
+        '<label class="field">' +
+        '<span>Название бота</span>' +
+        '<input type="text" data-mm-field="name" value="' +
+        escapeHtml(botName) +
+        '" placeholder="Например: Platform Bot" />' +
+        '</label>' +
+        '<label class="field">' +
+        '<span>Адрес сервера</span>' +
+        '<input type="url" data-mm-field="baseUrl" value="' +
+        escapeHtml(bot.baseUrl || '') +
+        '" placeholder="https://mm.example.com" />' +
+        '</label>' +
+        '<label class="field">' +
+        '<span>Команда Mattermost</span>' +
+        '<input type="text" data-mm-field="teamName" value="' +
+        escapeHtml(bot.teamName || '') +
+        '" placeholder="Например: platform" />' +
+        '</label>' +
+        '<label class="field">' +
+        '<span>ID команды</span>' +
+        '<input type="text" data-mm-field="teamId" value="' +
+        escapeHtml(bot.teamId || '') +
+        '" placeholder="Внутренний идентификатор команды" />' +
+        '</label>' +
+        '<label class="field settings-field-wide">' +
+        '<span>Токен бота</span>' +
+        '<input type="password" data-mm-field="token" value="' +
+        escapeHtml(bot.token || '') +
+        '" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" data-1p-ignore="true" data-lpignore="true" />' +
+        '</label>' +
+        '</div>' +
+        '</article>'
+      );
+    })
+    .join('');
+}
+
+function readMattermostBotsFromForm() {
+  if (!elements.settingsMmBotsList) {
+    return [];
+  }
+  return Array.from(
+    elements.settingsMmBotsList.querySelectorAll('[data-mm-bot-card]'),
+  )
+    .map(function (card, index) {
+      const id = String(card.getAttribute('data-bot-id') || '').trim();
+      return {
+        id: id || 'bot-' + String(index + 1),
+        name: String(
+          (card.querySelector('[data-mm-field="name"]') || {}).value || '',
+        ).trim(),
+        baseUrl: String(
+          (card.querySelector('[data-mm-field="baseUrl"]') || {}).value || '',
+        ).trim(),
+        token: String(
+          (card.querySelector('[data-mm-field="token"]') || {}).value || '',
+        ).trim(),
+        teamId: String(
+          (card.querySelector('[data-mm-field="teamId"]') || {}).value || '',
+        ).trim(),
+        teamName: String(
+          (card.querySelector('[data-mm-field="teamName"]') || {}).value || '',
+        ).trim(),
+      };
+    })
+    .filter(function (bot) {
+      return (
+        bot.name ||
+        bot.baseUrl ||
+        bot.token ||
+        bot.teamId ||
+        bot.teamName
+      );
+    });
+}
+
+function getActiveMattermostBotId(bots) {
+  const active = elements.settingsForm.querySelector(
+    'input[name="active-mm-bot"]:checked',
+  );
+  const requestedId = active ? String(active.value || '').trim() : '';
+  if (
+    requestedId &&
+    bots.some(function (item) {
+      return item.id === requestedId;
+    })
+  ) {
+    return requestedId;
+  }
+  return bots.length ? bots[0].id : '';
+}
+
+function addMattermostBot() {
+  const bots = readMattermostBotsFromForm();
+  const nextIndex = bots.length + 1;
+  bots.push({
+    id: 'bot-' + String(Date.now()),
+    name: 'Бот ' + String(nextIndex),
+    baseUrl: '',
+    token: '',
+    teamId: '',
+    teamName: '',
+  });
+  renderMattermostBotsEditor(bots, getActiveMattermostBotId(bots));
+}
+
+function removeMattermostBot(botId) {
+  const bots = readMattermostBotsFromForm().filter(function (bot) {
+    return bot.id !== botId;
+  });
+  renderMattermostBotsEditor(bots, getActiveMattermostBotId(bots));
 }
 
 function renderSidebar() {
@@ -1963,9 +2282,15 @@ function renderAdminUsers() {
 
   const rows = state.adminUsers
     .map(function (user) {
+      const availableBots = getAvailableMattermostBots();
+      const allowedBotIds = Array.isArray(user.allowedBotIds)
+        ? user.allowedBotIds
+        : [];
       return (
         '<article class="history-card admin-user-row-card" data-user-card="' +
         escapeHtml(user.id) +
+        '" data-user-username="' +
+        escapeHtml(user.username) +
         '">' +
         '<div class="admin-user-row-top">' +
         '<div class="admin-user-identity">' +
@@ -1990,9 +2315,14 @@ function renderAdminUsers() {
         '</div>' +
         '</div>' +
         '<div class="admin-user-row-actions">' +
+        '<div class="admin-user-row-buttons">' +
+        '<button class="ghost-button" type="button" data-delete-user="' +
+        escapeHtml(user.id) +
+        '">Удалить</button>' +
         '<button class="ghost-button" type="button" data-save-user="' +
         escapeHtml(user.id) +
         '">Сохранить</button>' +
+        '</div>' +
         '<p class="muted admin-user-status" data-user-status></p>' +
         '</div>' +
         '</div>' +
@@ -2010,6 +2340,25 @@ function renderAdminUsers() {
         '<option value="admin"' +
         (user.role === 'admin' ? ' selected' : '') +
         '>Администратор</option>' +
+        '</select></div></label>' +
+        '<label class="field"><span>Доступные боты</span><input data-field="allowedBotIds" type="text" value="' +
+        escapeHtml(allowedBotIds.join(', ')) +
+        '" placeholder="primary, ops-bot" /></label>' +
+        '<label class="field"><span>Бот по умолчанию</span><div class="select-shell"><select data-field="preferredBotId">' +
+        '<option value="">Не выбран</option>' +
+        availableBots
+          .map(function (bot) {
+            return (
+              '<option value="' +
+              escapeHtml(bot.id) +
+              '"' +
+              (user.preferredBotId === bot.id ? ' selected' : '') +
+              '>' +
+              escapeHtml(bot.name || bot.teamName || bot.id) +
+              '</option>'
+            );
+          })
+          .join('') +
         '</select></div></label>' +
         '<label class="field"><span>Новый пароль</span><input data-field="password" type="password" placeholder="Оставь поле пустым, если пароль не меняется" /></label>' +
         '<label class="field inline-field admin-user-toggle"><span>Активен</span><input data-field="isActive" type="checkbox"' +
@@ -2056,6 +2405,14 @@ function renderAdminUsers() {
     .forEach(function (button) {
       button.addEventListener('click', function () {
         onSaveManagedUser(button.getAttribute('data-save-user'));
+      });
+    });
+
+  elements.adminUsersList
+    .querySelectorAll('[data-delete-user]')
+    .forEach(function (button) {
+      button.addEventListener('click', function () {
+        onDeleteManagedUser(button.getAttribute('data-delete-user'));
       });
     });
 }
@@ -2523,6 +2880,7 @@ function renderComposerSummary() {
   elements.composerChannelsCount.textContent = String(state.selectedChannels.length);
   elements.composerRoute.textContent =
     formatDeliveryMode(state.appSettings && state.appSettings.deliveryMode);
+  syncComposerMattermostBots();
   const composerState = getComposerState();
   elements.sendButton.disabled = !composerState.ready;
   updateComposerFieldStates();

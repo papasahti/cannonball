@@ -376,10 +376,18 @@ Handler createHandler({
       });
     }
 
+    final settings = await settingsService.load();
+    final userAccess = await settingsService.buildUserMattermostAccess(
+      userId: user.id,
+      settings: settings,
+    );
     return _jsonResponse(HttpStatus.ok, {
       'ok': true,
       'authenticated': true,
-      'user': user.toJson(),
+      'user': {
+        ...user.toJson(),
+        ...userAccess,
+      },
     });
   });
 
@@ -393,9 +401,16 @@ Handler createHandler({
     }
 
     final settings = await settingsService.load();
+    final userAccess = await settingsService.buildUserMattermostAccess(
+      userId: user.id,
+      settings: settings,
+    );
     return _jsonResponse(HttpStatus.ok, {
       'ok': true,
-      'user': user.toJson(),
+      'user': {
+        ...user.toJson(),
+        ...userAccess,
+      },
       'settings': _buildSettingsPayload(
         settings,
         registry: integrationRegistry,
@@ -482,9 +497,17 @@ Handler createHandler({
       passwordHash: passwordHash,
     );
     final updatedUser = await database.getUserById(user.id);
+    final settings = await settingsService.load();
+    final userAccess = await settingsService.buildUserMattermostAccess(
+      userId: user.id,
+      settings: settings,
+    );
     return _jsonResponse(HttpStatus.ok, {
       'ok': true,
-      'user': _sanitizeUserMap(updatedUser!),
+      'user': {
+        ..._sanitizeUserMap(updatedUser!),
+        ...userAccess,
+      },
     });
   });
 
@@ -612,6 +635,7 @@ Handler createHandler({
     final rawChannels = ((payload['channels'] as List<dynamic>?) ?? const [])
         .map((item) => item.toString())
         .toList(growable: false);
+    final mattermostBotId = (payload['mattermostBotId'] as String? ?? '').trim();
 
     if (message.isEmpty) {
       return _jsonResponse(HttpStatus.badRequest, {
@@ -628,6 +652,35 @@ Handler createHandler({
     }
 
     final settings = await settingsService.load();
+    final userAccess = await settingsService.buildUserMattermostAccess(
+      userId: user.id,
+      settings: settings,
+    );
+    final allowedBotIds =
+        (userAccess['allowedBotIds'] as List<dynamic>? ?? const [])
+            .map((item) => item.toString())
+            .toList(growable: false);
+    final preferredBotId = (userAccess['preferredBotId'] as String? ?? '').trim();
+    final selectedMattermostBotId = settings.deliveryMode == 'mattermost'
+        ? (mattermostBotId.isNotEmpty ? mattermostBotId : preferredBotId)
+        : '';
+    if (settings.deliveryMode == 'mattermost' &&
+        settings.mattermostBots.length > 1 &&
+        !user.isAdmin) {
+      if (allowedBotIds.isEmpty) {
+        return _jsonResponse(HttpStatus.forbidden, {
+          'ok': false,
+          'error': 'Администратор ещё не выдал тебе доступные боты Mattermost.',
+        });
+      }
+      if (selectedMattermostBotId.isEmpty ||
+          !allowedBotIds.contains(selectedMattermostBotId)) {
+        return _jsonResponse(HttpStatus.forbidden, {
+          'ok': false,
+          'error': 'Выбранный бот Mattermost недоступен для этого пользователя.',
+        });
+      }
+    }
     final configError = integrationRegistry.validateDeliveryConfiguration(settings);
     if (configError != null) {
       return _jsonResponse(HttpStatus.badRequest, {
@@ -644,6 +697,9 @@ Handler createHandler({
         rawUsers: rawUsers,
         rawGroups: rawGroups,
         rawChannels: rawChannels,
+        mattermostBotId: selectedMattermostBotId.isEmpty
+            ? null
+            : selectedMattermostBotId,
       );
       return _jsonResponse(HttpStatus.ok, outcome.toJson());
     } on DeliveryRouterException catch (error) {
@@ -672,9 +728,17 @@ Handler createHandler({
       });
     }
 
-    final users = (await database.listUsers())
-        .map(_sanitizeUserMap)
-        .toList(growable: false);
+    final settings = await settingsService.load();
+    final users = <Map<String, Object?>>[];
+    for (final item in await database.listUsers()) {
+      users.add({
+        ..._sanitizeUserMap(item),
+        ...await settingsService.buildUserMattermostAccess(
+          userId: item['id'] as int,
+          settings: settings,
+        ),
+      });
+    }
     return _jsonResponse(HttpStatus.ok, {'ok': true, 'items': users});
   });
 
@@ -755,9 +819,17 @@ Handler createHandler({
         });
       }
 
+      await settingsService.saveUserMattermostAccess(
+        userId: id,
+        allowedBotIds: const <String>[],
+        preferredBotId: '',
+      );
       return _jsonResponse(HttpStatus.ok, {
         'ok': true,
-        'user': _sanitizeUserMap(createdUser),
+        'user': {
+          ..._sanitizeUserMap(createdUser),
+          ...await settingsService.buildUserMattermostAccess(userId: id),
+        },
       });
     } catch (error, stackTrace) {
       _authLog(
@@ -806,6 +878,8 @@ Handler createHandler({
         ? payload['isActive'] == true
         : existing['isActive'] as bool;
     final password = (payload['password'] as String? ?? '').trim();
+    final allowedBotIds = _normalizeStringList(payload['allowedBotIds']);
+    final preferredBotId = (payload['preferredBotId'] as String? ?? '').trim();
 
     final validationError = _validateManagedUser(
       username: existing['username'] as String,
@@ -845,10 +919,58 @@ Handler createHandler({
           ? null
           : AuthService.hashPassword(password),
     );
+    await settingsService.saveUserMattermostAccess(
+      userId: userId,
+      allowedBotIds: allowedBotIds,
+      preferredBotId: preferredBotId,
+    );
     return _jsonResponse(HttpStatus.ok, {
       'ok': true,
-      'user': _sanitizeUserMap((await database.getUserById(userId))!),
+      'user': {
+        ..._sanitizeUserMap((await database.getUserById(userId))!),
+        ...await settingsService.buildUserMattermostAccess(userId: userId),
+      },
     });
+  });
+
+  router.delete('/api/admin/users/<id|[0-9]+>', (
+    Request request,
+    String id,
+  ) async {
+    final admin = await _requireAdmin(request, authService);
+    if (admin == null) {
+      return _jsonResponse(HttpStatus.forbidden, {
+        'ok': false,
+        'error': 'Нужны права администратора.',
+      });
+    }
+
+    final userId = int.parse(id);
+    final existing = await database.getUserById(userId);
+    if (existing == null) {
+      return _jsonResponse(HttpStatus.notFound, {
+        'ok': false,
+        'error': 'Пользователь не найден.',
+      });
+    }
+
+    final isActiveAdmin =
+        existing['role'] == 'admin' && existing['isActive'] == true;
+    if (isActiveAdmin && await database.countActiveAdmins() <= 1) {
+      return _jsonResponse(HttpStatus.badRequest, {
+        'ok': false,
+        'error':
+            'В системе должен остаться хотя бы один активный администратор.',
+      });
+    }
+
+    await settingsService.clearUserMattermostAccess(userId: userId);
+    await database.deleteUser(userId);
+    _authLog(
+      config,
+      'admin delete user success by=${admin.username} userId=$userId username=${existing['username']}',
+    );
+    return _jsonResponse(HttpStatus.ok, {'ok': true});
   });
 
   router.get('/api/admin/settings', (Request request) async {

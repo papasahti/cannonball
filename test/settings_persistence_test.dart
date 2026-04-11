@@ -29,10 +29,25 @@ void main() {
       'appTitle': 'cannonball',
       'deliveryMode': 'n8n',
       'defaultChannels': ['alerts', 'ops'],
-      'mattermostBaseUrl': 'https://mm.example.com',
-      'mattermostToken': 'mm-token',
-      'mattermostTeamId': 'team-id',
-      'mattermostTeamName': 'devops',
+      'mattermostBots': [
+        {
+          'id': 'primary',
+          'name': 'Primary Bot',
+          'baseUrl': 'https://mm-primary.example.com',
+          'token': 'mm-primary-token',
+          'teamId': 'team-primary',
+          'teamName': 'platform',
+        },
+        {
+          'id': 'ops',
+          'name': 'Ops Bot',
+          'baseUrl': 'https://mm-ops.example.com',
+          'token': 'mm-ops-token',
+          'teamId': 'team-ops',
+          'teamName': 'ops',
+        },
+      ],
+      'activeMattermostBotId': 'ops',
       'n8nBaseUrl': 'https://n8n.example.com',
       'n8nWebhookUrl': 'https://n8n.example.com/webhook/cannonball',
       'n8nApiKey': 'n8n-api-key',
@@ -69,10 +84,12 @@ void main() {
 
     expect(settings.deliveryMode, 'n8n');
     expect(settings.defaultChannels, ['alerts', 'ops']);
-    expect(settings.mattermostBaseUrl, 'https://mm.example.com');
-    expect(settings.mattermostToken, 'mm-token');
-    expect(settings.mattermostTeamId, 'team-id');
-    expect(settings.mattermostTeamName, 'devops');
+    expect(settings.activeMattermostBotId, 'ops');
+    expect(settings.mattermostBots, hasLength(2));
+    expect(settings.mattermostBaseUrl, 'https://mm-ops.example.com');
+    expect(settings.mattermostToken, 'mm-ops-token');
+    expect(settings.mattermostTeamId, 'team-ops');
+    expect(settings.mattermostTeamName, 'ops');
     expect(settings.n8nBaseUrl, 'https://n8n.example.com');
     expect(
       settings.n8nWebhookUrl,
