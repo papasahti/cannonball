@@ -13,6 +13,12 @@ class AppConfig {
     required this.bootstrapAdminPassword,
     required this.bootstrapAdminPasswordHash,
     required this.forceBootstrapAdminPasswordSync,
+    this.bootstrapUserUsername,
+    this.bootstrapUserDisplayName = 'Operator One',
+    this.bootstrapUserEmail,
+    this.bootstrapUserPassword,
+    this.bootstrapUserPasswordHash,
+    this.forceBootstrapUserPasswordSync = false,
     required this.authDebugLogging,
     required this.sessionTtl,
     required this.secureCookies,
@@ -55,6 +61,12 @@ class AppConfig {
   final String? bootstrapAdminPassword;
   final String? bootstrapAdminPasswordHash;
   final bool forceBootstrapAdminPasswordSync;
+  final String? bootstrapUserUsername;
+  final String bootstrapUserDisplayName;
+  final String? bootstrapUserEmail;
+  final String? bootstrapUserPassword;
+  final String? bootstrapUserPasswordHash;
+  final bool forceBootstrapUserPasswordSync;
   final bool authDebugLogging;
   final Duration sessionTtl;
   final bool secureCookies;
@@ -96,6 +108,23 @@ class AppConfig {
         AuthService.hashPassword(bootstrapAdminPassword!);
   }
 
+  String? resolveBootstrapUserPasswordHash() {
+    if (bootstrapUserUsername == null) {
+      return null;
+    }
+    if (forceBootstrapUserPasswordSync && bootstrapUserPassword != null) {
+      return AuthService.hashPassword(bootstrapUserPassword!);
+    }
+
+    if (bootstrapUserPasswordHash != null) {
+      return bootstrapUserPasswordHash;
+    }
+    if (bootstrapUserPassword != null) {
+      return AuthService.hashPassword(bootstrapUserPassword!);
+    }
+    return null;
+  }
+
   static AppConfig fromEnvironment() {
     final port = int.tryParse(Platform.environment['PORT'] ?? '') ?? 8080;
     final databaseDriver =
@@ -129,6 +158,24 @@ class AppConfig {
         (Platform.environment['APP_FORCE_BOOTSTRAP_PASSWORD_SYNC'] ?? 'false')
             .toLowerCase() ==
         'true';
+    final bootstrapUserUsername = _nullableEnv('APP_USER_USERNAME');
+    final bootstrapUserDisplayName =
+        _nullableEnv('APP_USER_DISPLAY_NAME') ?? 'Operator One';
+    final bootstrapUserEmail = _nullableEnv('APP_USER_EMAIL');
+    final bootstrapUserPassword = _nullableEnv('APP_USER_PASSWORD');
+    final bootstrapUserPasswordHash = _nullableEnv('APP_USER_PASSWORD_HASH');
+    final forceBootstrapUserPasswordSync =
+        (Platform.environment['APP_FORCE_BOOTSTRAP_USER_PASSWORD_SYNC'] ??
+                'false')
+            .toLowerCase() ==
+        'true';
+    if (bootstrapUserUsername != null &&
+        bootstrapUserPassword == null &&
+        bootstrapUserPasswordHash == null) {
+      throw StateError(
+        'APP_USER_PASSWORD or APP_USER_PASSWORD_HASH must be provided when APP_USER_USERNAME is set.',
+      );
+    }
     final authDebugLogging =
         (Platform.environment['AUTH_DEBUG_LOGGING'] ?? 'false').toLowerCase() ==
         'true';
@@ -143,6 +190,12 @@ class AppConfig {
       bootstrapAdminPassword: bootstrapAdminPassword,
       bootstrapAdminPasswordHash: bootstrapAdminPasswordHash,
       forceBootstrapAdminPasswordSync: forceBootstrapAdminPasswordSync,
+      bootstrapUserUsername: bootstrapUserUsername,
+      bootstrapUserDisplayName: bootstrapUserDisplayName,
+      bootstrapUserEmail: bootstrapUserEmail,
+      bootstrapUserPassword: bootstrapUserPassword,
+      bootstrapUserPasswordHash: bootstrapUserPasswordHash,
+      forceBootstrapUserPasswordSync: forceBootstrapUserPasswordSync,
       authDebugLogging: authDebugLogging,
       sessionTtl: Duration(hours: sessionHours),
       secureCookies: !allowInsecure,

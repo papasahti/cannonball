@@ -53,6 +53,35 @@ class PostgresDatabaseStore implements DatabaseStore {
   }
 
   @override
+  Future<void> ensureBootstrapUser({
+    required String username,
+    required String displayName,
+    required String? email,
+    required String passwordHash,
+    bool forcePasswordSync = false,
+  }) async {
+    final existing = await getUserByUsername(username);
+    if (existing != null) {
+      await updateBootstrapUser(
+        id: existing['id'] as int,
+        displayName: displayName,
+        email: email,
+        passwordHash: forcePasswordSync ? passwordHash : null,
+      );
+      return;
+    }
+
+    await createUser(
+      username: username,
+      displayName: displayName,
+      email: email,
+      passwordHash: passwordHash,
+      role: 'user',
+      isActive: true,
+    );
+  }
+
+  @override
   Future<int> createUser({
     required String username,
     required String displayName,
@@ -264,6 +293,53 @@ class PostgresDatabaseStore implements DatabaseStore {
       SET display_name = $1,
           email = COALESCE($2, email),
           role = 'admin',
+          is_active = TRUE,
+          auth_provider = 'local',
+          updated_at = NOW()
+      WHERE id = $3
+      ''',
+      parameters: [displayName, effectiveEmail, id],
+      ignoreRows: true,
+    );
+  }
+
+  Future<void> updateBootstrapUser({
+    required int id,
+    required String displayName,
+    required String? email,
+    String? passwordHash,
+  }) async {
+    final normalizedEmail = email?.trim();
+    final effectiveEmail =
+        normalizedEmail != null && normalizedEmail.isNotEmpty
+            ? normalizedEmail
+            : null;
+
+    if (passwordHash != null && passwordHash.isNotEmpty) {
+      await _db.execute(
+        r'''
+        UPDATE users
+        SET display_name = $1,
+            email = COALESCE($2, email),
+            password_hash = $3,
+            role = 'user',
+            is_active = TRUE,
+            auth_provider = 'local',
+            updated_at = NOW()
+        WHERE id = $4
+        ''',
+        parameters: [displayName, effectiveEmail, passwordHash, id],
+        ignoreRows: true,
+      );
+      return;
+    }
+
+    await _db.execute(
+      r'''
+      UPDATE users
+      SET display_name = $1,
+          email = COALESCE($2, email),
+          role = 'user',
           is_active = TRUE,
           auth_provider = 'local',
           updated_at = NOW()

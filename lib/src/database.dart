@@ -62,6 +62,33 @@ class AppDatabase {
     );
   }
 
+  void ensureBootstrapUser({
+    required String username,
+    required String displayName,
+    required String? email,
+    required String passwordHash,
+    bool forcePasswordSync = false,
+  }) {
+    final existing = getUserByUsername(username);
+    if (existing != null) {
+      updateBootstrapUser(
+        id: existing['id'] as int,
+        displayName: displayName,
+        email: email,
+        passwordHash: forcePasswordSync ? passwordHash : null,
+      );
+      return;
+    }
+    createUser(
+      username: username,
+      displayName: displayName,
+      email: email,
+      passwordHash: passwordHash,
+      role: 'user',
+      isActive: true,
+    );
+  }
+
   int createUser({
     required String username,
     required String displayName,
@@ -265,6 +292,51 @@ class AppDatabase {
       SET display_name = ?,
           email = COALESCE(?, email),
           role = 'admin',
+          is_active = 1,
+          auth_provider = 'local',
+          updated_at = ?
+      WHERE id = ?
+      ''',
+      [displayName, effectiveEmail, now, id],
+    );
+  }
+
+  void updateBootstrapUser({
+    required int id,
+    required String displayName,
+    required String? email,
+    String? passwordHash,
+  }) {
+    final normalizedEmail = email?.trim();
+    final now = DateTime.now().toUtc().toIso8601String();
+    final effectiveEmail = normalizedEmail != null && normalizedEmail.isNotEmpty
+        ? normalizedEmail
+        : null;
+
+    if (passwordHash != null && passwordHash.isNotEmpty) {
+      db.execute(
+        '''
+        UPDATE users
+        SET display_name = ?,
+            email = COALESCE(?, email),
+            password_hash = ?,
+            role = 'user',
+            is_active = 1,
+            auth_provider = 'local',
+            updated_at = ?
+        WHERE id = ?
+        ''',
+        [displayName, effectiveEmail, passwordHash, now, id],
+      );
+      return;
+    }
+
+    db.execute(
+      '''
+      UPDATE users
+      SET display_name = ?,
+          email = COALESCE(?, email),
+          role = 'user',
           is_active = 1,
           auth_provider = 'local',
           updated_at = ?

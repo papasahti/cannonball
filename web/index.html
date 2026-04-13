@@ -369,11 +369,28 @@
                       <span class="field-hint">Так имя будет показываться в интерфейсе продукта.</span>
                     </label>
                     <label class="field">
-                      <span>Email</span>
-                      <input id="profile-email" type="email" />
-                      <span class="field-hint">Используется для уведомлений и восстановления доступа.</span>
-                    </label>
-                    <div id="profile-password-section" class="stack">
+                        <span>Email</span>
+                        <input id="profile-email" type="email" />
+                        <span class="field-hint">Используется для уведомлений и восстановления доступа.</span>
+                      </label>
+                    <p id="profile-auth-hint" class="muted hidden">
+                      Для этого аккаунта вход выполняется через Keycloak. Пароль управляется во внешней системе.
+                    </p>
+                    <div class="form-actions">
+                      <button class="primary-button" type="submit">Сохранить профиль</button>
+                      <p id="profile-status" class="muted"></p>
+                    </div>
+                  </form>
+                </section>
+
+                <section id="profile-password-section" class="target-section profile-card">
+                  <div class="section-heading compact">
+                    <div>
+                      <h3>Смена пароля</h3>
+                      <p class="muted">Укажи текущий пароль и дважды введи новый.</p>
+                    </div>
+                  </div>
+                  <form id="profile-password-form" class="stack">
                       <label class="field">
                         <span>Текущий пароль</span>
                         <input
@@ -388,16 +405,21 @@
                           id="profile-new-password"
                           type="password"
                           autocomplete="new-password"
-                          placeholder="Оставь поле пустым, если пароль менять не нужно"
+                          placeholder="Минимум 8 символов"
                         />
                       </label>
-                    </div>
-                    <p id="profile-auth-hint" class="muted hidden">
-                      Для этого аккаунта вход выполняется через Keycloak. Пароль управляется во внешней системе.
-                    </p>
+                      <label class="field">
+                        <span>Повтори новый пароль</span>
+                        <input
+                          id="profile-new-password-confirm"
+                          type="password"
+                          autocomplete="new-password"
+                          placeholder="Ещё раз новый пароль"
+                        />
+                      </label>
                     <div class="form-actions">
-                      <button class="primary-button" type="submit">Сохранить профиль</button>
-                      <p id="profile-status" class="muted"></p>
+                      <button class="primary-button" type="submit">Сменить пароль</button>
+                      <p id="profile-password-status" class="muted"></p>
                     </div>
                   </form>
                 </section>

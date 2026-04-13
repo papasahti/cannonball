@@ -455,6 +455,8 @@ Handler createHandler({
     final currentPassword = (payload['currentPassword'] as String? ?? '')
         .trim();
     final newPassword = (payload['newPassword'] as String? ?? '').trim();
+    final newPasswordConfirm =
+        (payload['newPasswordConfirm'] as String? ?? '').trim();
 
     if (displayName.isEmpty) {
       return _jsonResponse(HttpStatus.badRequest, {
@@ -471,6 +473,18 @@ Handler createHandler({
 
     String? passwordHash;
     if (newPassword.isNotEmpty) {
+      if (newPasswordConfirm.isEmpty) {
+        return _jsonResponse(HttpStatus.badRequest, {
+          'ok': false,
+          'error': 'Повтори новый пароль.',
+        });
+      }
+      if (newPassword != newPasswordConfirm) {
+        return _jsonResponse(HttpStatus.badRequest, {
+          'ok': false,
+          'error': 'Новые пароли не совпадают.',
+        });
+      }
       if (newPassword.length < 8) {
         return _jsonResponse(HttpStatus.badRequest, {
           'ok': false,

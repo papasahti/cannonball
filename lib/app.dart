@@ -63,6 +63,32 @@ Future<Application> buildApplication() async {
     config,
     'bootstrap complete username=${config.bootstrapAdminUsername} exists=${bootstrapUser != null} role=${bootstrapUser?['role']} active=${bootstrapUser?['isActive']} provider=${bootstrapUser?['authProvider']}',
   );
+  final bootstrapUserUsername = config.bootstrapUserUsername;
+  if (bootstrapUserUsername != null &&
+      bootstrapUserUsername.toLowerCase() !=
+          config.bootstrapAdminUsername.toLowerCase()) {
+    _authLog(
+      config,
+      'bootstrap default user start username=$bootstrapUserUsername forceSync=${config.forceBootstrapUserPasswordSync} passwordProvided=${config.bootstrapUserPassword != null} passwordHashProvided=${config.bootstrapUserPasswordHash != null}',
+    );
+    final bootstrapUserPasswordHash = config.resolveBootstrapUserPasswordHash();
+    if (bootstrapUserPasswordHash != null) {
+      await database.ensureBootstrapUser(
+        username: bootstrapUserUsername,
+        displayName: config.bootstrapUserDisplayName,
+        email: config.bootstrapUserEmail,
+        passwordHash: bootstrapUserPasswordHash,
+        forcePasswordSync: config.forceBootstrapUserPasswordSync,
+      );
+      final defaultUser = await database.getUserByUsername(
+        bootstrapUserUsername,
+      );
+      _authLog(
+        config,
+        'bootstrap default user complete username=$bootstrapUserUsername exists=${defaultUser != null} role=${defaultUser?['role']} active=${defaultUser?['isActive']} provider=${defaultUser?['authProvider']}',
+      );
+    }
+  }
 
   final authService = AuthService(
     database: database,

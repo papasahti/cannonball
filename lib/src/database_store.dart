@@ -11,6 +11,14 @@ abstract class DatabaseStore {
     bool forcePasswordSync = false,
   });
 
+  Future<void> ensureBootstrapUser({
+    required String username,
+    required String displayName,
+    required String? email,
+    required String passwordHash,
+    bool forcePasswordSync = false,
+  });
+
   Future<int> createUser({
     required String username,
     required String displayName,
@@ -215,6 +223,23 @@ class SqliteDatabaseStore implements DatabaseStore {
     bool forcePasswordSync = false,
   }) async {
     _database.ensureBootstrapAdmin(
+      username: username,
+      displayName: displayName,
+      email: email,
+      passwordHash: passwordHash,
+      forcePasswordSync: forcePasswordSync,
+    );
+  }
+
+  @override
+  Future<void> ensureBootstrapUser({
+    required String username,
+    required String displayName,
+    required String? email,
+    required String passwordHash,
+    bool forcePasswordSync = false,
+  }) async {
+    _database.ensureBootstrapUser(
       username: username,
       displayName: displayName,
       email: email,

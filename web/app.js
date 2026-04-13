@@ -164,13 +164,16 @@ const elements = {
   historySummary: document.getElementById('history-summary'),
   historyList: document.getElementById('history-list'),
   profileForm: document.getElementById('profile-form'),
+  profilePasswordForm: document.getElementById('profile-password-form'),
   profileDisplayName: document.getElementById('profile-display-name'),
   profileEmail: document.getElementById('profile-email'),
   profileCurrentPassword: document.getElementById('profile-current-password'),
   profileNewPassword: document.getElementById('profile-new-password'),
+  profileNewPasswordConfirm: document.getElementById('profile-new-password-confirm'),
   profilePasswordSection: document.getElementById('profile-password-section'),
   profileAuthHint: document.getElementById('profile-auth-hint'),
   profileStatus: document.getElementById('profile-status'),
+  profilePasswordStatus: document.getElementById('profile-password-status'),
   createUserForm: document.getElementById('create-user-form'),
   createUserUsername: document.getElementById('create-user-username'),
   createUserDisplayName: document.getElementById('create-user-display-name'),
@@ -335,6 +338,9 @@ function bindEvents() {
     });
   }
   elements.profileForm.addEventListener('submit', onSaveProfile);
+  if (elements.profilePasswordForm) {
+    elements.profilePasswordForm.addEventListener('submit', onChangeProfilePassword);
+  }
   elements.createUserForm.addEventListener('submit', onCreateUser);
   elements.adminUsersRefresh.addEventListener('click', function () {
     loadAdminUsers();
@@ -942,18 +948,9 @@ async function onSaveProfile(event) {
     markFieldInvalid(elements.profileEmail, true);
     return;
   }
-  if (
-    elements.profileNewPassword.value &&
-    elements.profileNewPassword.value.length < 8
-  ) {
-    setStatus(elements.profileStatus, 'Новый пароль должен быть не короче 8 символов.', 'negative');
-    markFieldInvalid(elements.profileNewPassword, true);
-    return;
-  }
 
   markFieldInvalid(elements.profileDisplayName, false);
   markFieldInvalid(elements.profileEmail, false);
-  markFieldInvalid(elements.profileNewPassword, false);
   setStatus(elements.profileStatus, 'Сохраняю изменения профиля...', 'neutral');
 
   const response = await api('/api/profile', {
@@ -961,8 +958,6 @@ async function onSaveProfile(event) {
     body: JSON.stringify({
       displayName: elements.profileDisplayName.value.trim(),
       email: elements.profileEmail.value.trim(),
-      currentPassword: elements.profileCurrentPassword.value,
-      newPassword: elements.profileNewPassword.value,
     }),
   });
 
@@ -976,9 +971,67 @@ async function onSaveProfile(event) {
   }
 
   state.currentUser = response.user;
-  elements.profileCurrentPassword.value = '';
-  elements.profileNewPassword.value = '';
   setStatus(elements.profileStatus, 'Изменения профиля сохранены.', 'positive');
+  renderUserIdentity();
+}
+
+async function onChangeProfilePassword(event) {
+  event.preventDefault();
+  const currentPassword = elements.profileCurrentPassword.value;
+  const newPassword = elements.profileNewPassword.value;
+  const confirmPassword = elements.profileNewPasswordConfirm.value;
+
+  markFieldInvalid(elements.profileCurrentPassword, !currentPassword);
+  markFieldInvalid(elements.profileNewPassword, newPassword.length < 8);
+  markFieldInvalid(
+    elements.profileNewPasswordConfirm,
+    !confirmPassword || newPassword !== confirmPassword,
+  );
+
+  if (!currentPassword) {
+    setStatus(elements.profilePasswordStatus, 'Укажи текущий пароль.', 'negative');
+    return;
+  }
+  if (newPassword.length < 8) {
+    setStatus(
+      elements.profilePasswordStatus,
+      'Новый пароль должен быть не короче 8 символов.',
+      'negative',
+    );
+    return;
+  }
+  if (newPassword !== confirmPassword) {
+    setStatus(elements.profilePasswordStatus, 'Новые пароли не совпадают.', 'negative');
+    return;
+  }
+
+  setStatus(elements.profilePasswordStatus, 'Сохраняю новый пароль...', 'neutral');
+  const response = await api('/api/profile', {
+    method: 'PATCH',
+    body: JSON.stringify({
+      displayName: elements.profileDisplayName.value.trim(),
+      email: elements.profileEmail.value.trim(),
+      currentPassword: currentPassword,
+      newPassword: newPassword,
+      newPasswordConfirm: confirmPassword,
+    }),
+  });
+
+  if (!response.ok) {
+    setStatus(
+      elements.profilePasswordStatus,
+      response.error || 'Не удалось сменить пароль.',
+      'negative',
+    );
+    return;
+  }
+
+  state.currentUser = response.user;
+  elements.profilePasswordForm.reset();
+  clearFieldState(elements.profileCurrentPassword);
+  clearFieldState(elements.profileNewPassword);
+  clearFieldState(elements.profileNewPasswordConfirm);
+  setStatus(elements.profilePasswordStatus, 'Пароль изменён.', 'positive');
   renderUserIdentity();
 }
 
