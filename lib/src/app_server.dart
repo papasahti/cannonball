@@ -35,7 +35,9 @@ Handler createHandler({
   final router = Router();
   final emailService = EmailService();
   final keycloakService = KeycloakService();
-  final integrationRegistry = IntegrationRegistry(settingsService: settingsService);
+  final integrationRegistry = IntegrationRegistry(
+    settingsService: settingsService,
+  );
   final audienceService = AudienceService(
     registry: integrationRegistry,
     database: database,
@@ -73,22 +75,13 @@ Handler createHandler({
       _authLog(config, 'login denied: local auth disabled');
       return _jsonResponse(HttpStatus.forbidden, {
         'ok': false,
-        'error': 'Локальный вход отключён. Используй корпоративный вход через Keycloak.',
+        'error':
+            'Локальный вход отключён. Используй корпоративный вход через Keycloak.',
       });
     }
     final payload = await _readJsonBody(request);
     final username = (payload['username'] as String? ?? '').trim();
     final password = (payload['password'] as String? ?? '').trim();
-    if (username == config.bootstrapAdminUsername) {
-      _authLog(config, 'login bootstrap sync requested for username=$username');
-      await database.ensureBootstrapAdmin(
-        username: config.bootstrapAdminUsername,
-        displayName: config.bootstrapAdminDisplayName,
-        email: config.bootstrapAdminEmail,
-        passwordHash: config.resolveBootstrapPasswordHash(),
-        forcePasswordSync: config.forceBootstrapAdminPasswordSync,
-      );
-    }
     _authLog(
       config,
       'login attempt username=$username passwordProvided=${password.isNotEmpty}',
@@ -102,7 +95,10 @@ Handler createHandler({
           ? null
           : await database.getUserByUsername(username);
       if (existing == null) {
-        _authLog(config, 'login failed username=$username reason=user-not-found');
+        _authLog(
+          config,
+          'login failed username=$username reason=user-not-found',
+        );
       } else if (existing['isActive'] != true) {
         _authLog(
           config,
@@ -165,7 +161,9 @@ Handler createHandler({
     }
 
     try {
-      final discovery = await keycloakService.discover(settings.keycloakIssuerUrl);
+      final discovery = await keycloakService.discover(
+        settings.keycloakIssuerUrl,
+      );
       final state = authService.generateOpaqueToken();
       final redirectUri = _buildKeycloakRedirectUri(request, settings);
       final authUrl = keycloakService.buildAuthorizationUrl(
@@ -207,7 +205,10 @@ Handler createHandler({
       request.headers[HttpHeaders.cookieHeader],
       'cannonball_oidc_state',
     );
-    if (code.isEmpty || state.isEmpty || expectedState == null || expectedState != state) {
+    if (code.isEmpty ||
+        state.isEmpty ||
+        expectedState == null ||
+        expectedState != state) {
       return Response.found(
         '/?login_error=${Uri.encodeComponent('Не удалось подтвердить вход через Keycloak. Попробуй ещё раз.')}',
         headers: {
@@ -220,7 +221,9 @@ Handler createHandler({
     }
 
     try {
-      final discovery = await keycloakService.discover(settings.keycloakIssuerUrl);
+      final discovery = await keycloakService.discover(
+        settings.keycloakIssuerUrl,
+      );
       final redirectUri = _buildKeycloakRedirectUri(request, settings);
       final authResult = await keycloakService.exchangeCode(
         discovery: discovery,
@@ -276,7 +279,8 @@ Handler createHandler({
     if (!settings.isLocalAuthEnabled) {
       return _jsonResponse(HttpStatus.badRequest, {
         'ok': false,
-        'error': 'Восстановление локального пароля недоступно, когда вход работает только через Keycloak.',
+        'error':
+            'Восстановление локального пароля недоступно, когда вход работает только через Keycloak.',
       });
     }
 
@@ -291,7 +295,9 @@ Handler createHandler({
     if (user != null &&
         (user['email'] as String?)?.isNotEmpty == true &&
         settings.isEmailConfigured) {
-      final token = await authService.createPasswordResetToken(user['id'] as int);
+      final token = await authService.createPasswordResetToken(
+        user['id'] as int,
+      );
       final resetLink = _buildPasswordResetLink(
         request: request,
         settings: settings,
@@ -320,7 +326,8 @@ Handler createHandler({
     if (!settings.isLocalAuthEnabled) {
       return _jsonResponse(HttpStatus.badRequest, {
         'ok': false,
-        'error': 'Смена локального пароля недоступна при режиме входа через Keycloak.',
+        'error':
+            'Смена локального пароля недоступна при режиме входа через Keycloak.',
       });
     }
     if (token.isEmpty || newPassword.isEmpty) {
@@ -351,7 +358,10 @@ Handler createHandler({
     });
   });
 
-  router.get('/api/password/reset/<token>', (Request request, String token) async {
+  router.get('/api/password/reset/<token>', (
+    Request request,
+    String token,
+  ) async {
     final user = await authService.resolvePasswordResetToken(token);
     if (user == null) {
       return _jsonResponse(HttpStatus.notFound, {
@@ -384,10 +394,7 @@ Handler createHandler({
     return _jsonResponse(HttpStatus.ok, {
       'ok': true,
       'authenticated': true,
-      'user': {
-        ...user.toJson(),
-        ...userAccess,
-      },
+      'user': {...user.toJson(), ...userAccess},
     });
   });
 
@@ -407,10 +414,7 @@ Handler createHandler({
     );
     return _jsonResponse(HttpStatus.ok, {
       'ok': true,
-      'user': {
-        ...user.toJson(),
-        ...userAccess,
-      },
+      'user': {...user.toJson(), ...userAccess},
       'settings': _buildSettingsPayload(
         settings,
         registry: integrationRegistry,
@@ -455,8 +459,8 @@ Handler createHandler({
     final currentPassword = (payload['currentPassword'] as String? ?? '')
         .trim();
     final newPassword = (payload['newPassword'] as String? ?? '').trim();
-    final newPasswordConfirm =
-        (payload['newPasswordConfirm'] as String? ?? '').trim();
+    final newPasswordConfirm = (payload['newPasswordConfirm'] as String? ?? '')
+        .trim();
 
     if (displayName.isEmpty) {
       return _jsonResponse(HttpStatus.badRequest, {
@@ -510,6 +514,9 @@ Handler createHandler({
       email: email,
       passwordHash: passwordHash,
     );
+    if (passwordHash != null) {
+      await settingsService.markLocalPasswordChanged(user.username);
+    }
     final updatedUser = await database.getUserById(user.id);
     final settings = await settingsService.load();
     final userAccess = await settingsService.buildUserMattermostAccess(
@@ -518,10 +525,7 @@ Handler createHandler({
     );
     return _jsonResponse(HttpStatus.ok, {
       'ok': true,
-      'user': {
-        ..._sanitizeUserMap(updatedUser!),
-        ...userAccess,
-      },
+      'user': {..._sanitizeUserMap(updatedUser!), ...userAccess},
     });
   });
 
@@ -540,10 +544,7 @@ Handler createHandler({
         settings: settings,
         query: query,
       );
-      return _jsonResponse(HttpStatus.ok, {
-        'ok': true,
-        'items': users,
-      });
+      return _jsonResponse(HttpStatus.ok, {'ok': true, 'items': users});
     } on MessagingPlatformException catch (error) {
       return _jsonResponse(HttpStatus.badGateway, {
         'ok': false,
@@ -568,10 +569,7 @@ Handler createHandler({
         settings: settings,
         query: query,
       );
-      return _jsonResponse(HttpStatus.ok, {
-        'ok': true,
-        'items': items,
-      });
+      return _jsonResponse(HttpStatus.ok, {'ok': true, 'items': items});
     } on MessagingPlatformException catch (error) {
       return _jsonResponse(HttpStatus.badGateway, {
         'ok': false,
@@ -596,10 +594,7 @@ Handler createHandler({
         settings: settings,
         query: query,
       );
-      return _jsonResponse(HttpStatus.ok, {
-        'ok': true,
-        'items': channels,
-      });
+      return _jsonResponse(HttpStatus.ok, {'ok': true, 'items': channels});
     } on MessagingPlatformException catch (error) {
       return _jsonResponse(HttpStatus.badGateway, {
         'ok': false,
@@ -649,7 +644,8 @@ Handler createHandler({
     final rawChannels = ((payload['channels'] as List<dynamic>?) ?? const [])
         .map((item) => item.toString())
         .toList(growable: false);
-    final mattermostBotId = (payload['mattermostBotId'] as String? ?? '').trim();
+    final mattermostBotId = (payload['mattermostBotId'] as String? ?? '')
+        .trim();
 
     if (message.isEmpty) {
       return _jsonResponse(HttpStatus.badRequest, {
@@ -674,7 +670,8 @@ Handler createHandler({
         (userAccess['allowedBotIds'] as List<dynamic>? ?? const [])
             .map((item) => item.toString())
             .toList(growable: false);
-    final preferredBotId = (userAccess['preferredBotId'] as String? ?? '').trim();
+    final preferredBotId = (userAccess['preferredBotId'] as String? ?? '')
+        .trim();
     final selectedMattermostBotId = settings.deliveryMode == 'mattermost'
         ? (mattermostBotId.isNotEmpty ? mattermostBotId : preferredBotId)
         : '';
@@ -691,11 +688,14 @@ Handler createHandler({
           !allowedBotIds.contains(selectedMattermostBotId)) {
         return _jsonResponse(HttpStatus.forbidden, {
           'ok': false,
-          'error': 'Выбранный бот Mattermost недоступен для этого пользователя.',
+          'error':
+              'Выбранный бот Mattermost недоступен для этого пользователя.',
         });
       }
     }
-    final configError = integrationRegistry.validateDeliveryConfiguration(settings);
+    final configError = integrationRegistry.validateDeliveryConfiguration(
+      settings,
+    );
     if (configError != null) {
       return _jsonResponse(HttpStatus.badRequest, {
         'ok': false,
@@ -829,7 +829,8 @@ Handler createHandler({
         );
         return _jsonResponse(HttpStatus.internalServerError, {
           'ok': false,
-          'error': 'Пользователь был создан, но не удалось перечитать запись из базы.',
+          'error':
+              'Пользователь был создан, но не удалось перечитать запись из базы.',
         });
       }
 
@@ -852,7 +853,8 @@ Handler createHandler({
       );
       return _jsonResponse(HttpStatus.internalServerError, {
         'ok': false,
-        'error': 'Не удалось создать пользователя из-за внутренней ошибки сервиса.',
+        'error':
+            'Не удалось создать пользователя из-за внутренней ошибки сервиса.',
       });
     }
   });
@@ -933,6 +935,11 @@ Handler createHandler({
           ? null
           : AuthService.hashPassword(password),
     );
+    if (password.isNotEmpty) {
+      await settingsService.markLocalPasswordChanged(
+        existing['username'] as String,
+      );
+    }
     await settingsService.saveUserMattermostAccess(
       userId: userId,
       allowedBotIds: allowedBotIds,
@@ -1056,7 +1063,8 @@ Handler createHandler({
 
     final limit =
         int.tryParse(request.requestedUri.queryParameters['limit'] ?? '') ?? 10;
-    final source = (request.requestedUri.queryParameters['source'] ?? '').trim();
+    final source = (request.requestedUri.queryParameters['source'] ?? '')
+        .trim();
 
     return _jsonResponse(HttpStatus.ok, {
       'ok': true,
@@ -1128,10 +1136,7 @@ Handler createHandler({
     }
 
     final payload = await _readJsonBody(request);
-    final merged = {
-      ...existing,
-      ...payload,
-    };
+    final merged = {...existing, ...payload};
     final validationError = _validateInboundRulePayload(merged);
     if (validationError != null) {
       return _jsonResponse(HttpStatus.badRequest, {
@@ -1238,7 +1243,9 @@ Handler createHandler({
       }
     }
 
-    final configError = integrationRegistry.validateDeliveryConfiguration(settings);
+    final configError = integrationRegistry.validateDeliveryConfiguration(
+      settings,
+    );
     if (configError != null) {
       return _jsonResponse(HttpStatus.badRequest, {
         'ok': false,
@@ -1254,10 +1261,7 @@ Handler createHandler({
       );
 
       final outcome = await campaignDeliveryService.sendCampaign(
-        sender: _buildSystemSender(
-          username: 'n8n',
-          displayName: 'n8n inbound',
-        ),
+        sender: _buildSystemSender(username: 'n8n', displayName: 'n8n inbound'),
         settings: settings,
         message: resolution.message,
         rawUsers: resolution.rawUsers,
@@ -1343,14 +1347,17 @@ Handler createHandler({
     }
 
     final payload = await _readJsonBody(request);
-    final event = inboundNotificationService.normalizeAlertmanagerEvent(payload);
+    final event = inboundNotificationService.normalizeAlertmanagerEvent(
+      payload,
+    );
 
     if (event.message.isEmpty &&
         event.ruleKey.isEmpty &&
         ((payload['messageTemplate'] as String?) ?? '').trim().isEmpty) {
       return _jsonResponse(HttpStatus.badRequest, {
         'ok': false,
-        'error': 'Нужно передать message, alert payload или правило с шаблоном сообщения.',
+        'error':
+            'Нужно передать message, alert payload или правило с шаблоном сообщения.',
       });
     }
 
@@ -1370,7 +1377,9 @@ Handler createHandler({
       }
     }
 
-    final configError = integrationRegistry.validateDeliveryConfiguration(settings);
+    final configError = integrationRegistry.validateDeliveryConfiguration(
+      settings,
+    );
     if (configError != null) {
       return _jsonResponse(HttpStatus.badRequest, {
         'ok': false,
@@ -1382,7 +1391,9 @@ Handler createHandler({
       final resolution = await inboundNotificationService.resolveDelivery(
         settings: settings,
         event: event,
-        activeRules: await database.listActiveInboundRulesBySource('alertmanager'),
+        activeRules: await database.listActiveInboundRulesBySource(
+          'alertmanager',
+        ),
       );
 
       final outcome = await campaignDeliveryService.sendCampaign(
@@ -1729,10 +1740,7 @@ String _buildCookie({
   return parts.join('; ');
 }
 
-String _clearCookie({
-  required String name,
-  required bool secureCookies,
-}) {
+String _clearCookie({required String name, required bool secureCookies}) {
   return _buildCookie(
     name: name,
     value: '',

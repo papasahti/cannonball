@@ -107,7 +107,9 @@ class AppSettings {
     if (mattermostBots.isEmpty) {
       return null;
     }
-    final byId = mattermostBots.where((item) => item.id == activeMattermostBotId);
+    final byId = mattermostBots.where(
+      (item) => item.id == activeMattermostBotId,
+    );
     if (byId.isNotEmpty) {
       return byId.first;
     }
@@ -118,8 +120,7 @@ class AppSettings {
     return mattermostBots.first;
   }
 
-  bool get isMattermostConfigured =>
-      activeMattermostBot?.isConfigured == true;
+  bool get isMattermostConfigured => activeMattermostBot?.isConfigured == true;
   bool get isN8nConfigured => n8nWebhookUrl.isNotEmpty;
   bool get isN8nInboundConfigured => n8nInboundSecret.isNotEmpty;
   bool get isEmailConfigured =>
@@ -165,7 +166,9 @@ class AppSettings {
     'mattermostToken': mattermostToken,
     'mattermostTeamId': mattermostTeamId,
     'mattermostTeamName': mattermostTeamName,
-    'mattermostBots': mattermostBots.map((item) => item.toJson()).toList(growable: false),
+    'mattermostBots': mattermostBots
+        .map((item) => item.toJson())
+        .toList(growable: false),
     'activeMattermostBotId': activeMattermostBotId,
     'n8nBaseUrl': n8nBaseUrl,
     'n8nWebhookUrl': n8nWebhookUrl,
@@ -203,13 +206,14 @@ class SettingsService {
   }) async {
     final currentSettings = settings ?? await load();
     final stored = await _database.getSettings();
-    final allowedBotIds = _decodeStringList(
-      stored['user.$userId.mattermost.allowedBots'],
-    ).where((id) {
-      return currentSettings.mattermostBots.any((bot) => bot.id == id);
-    }).toList(growable: false);
-    final preferredBotId = (stored['user.$userId.mattermost.preferredBotId'] ?? '')
-        .trim();
+    final allowedBotIds =
+        _decodeStringList(stored['user.$userId.mattermost.allowedBots'])
+            .where((id) {
+              return currentSettings.mattermostBots.any((bot) => bot.id == id);
+            })
+            .toList(growable: false);
+    final preferredBotId =
+        (stored['user.$userId.mattermost.preferredBotId'] ?? '').trim();
     final normalizedPreferredBotId = allowedBotIds.contains(preferredBotId)
         ? preferredBotId
         : (allowedBotIds.isNotEmpty ? allowedBotIds.first : '');
@@ -247,6 +251,16 @@ class SettingsService {
     });
   }
 
+  Future<void> markLocalPasswordChanged(String username) async {
+    final normalizedUsername = username.trim().toLowerCase();
+    if (normalizedUsername.isEmpty) {
+      return;
+    }
+    await _database.upsertSettings({
+      'auth.localPasswordChanged.$normalizedUsername': 'true',
+    });
+  }
+
   Future<AppSettings> load() async {
     final stored = await _database.getSettings();
 
@@ -268,7 +282,9 @@ class SettingsService {
       mattermostBots.isNotEmpty ? mattermostBots.first.id : '',
     );
     final activeMattermostBot =
-        mattermostBots.where((item) => item.id == activeMattermostBotId).isNotEmpty
+        mattermostBots
+            .where((item) => item.id == activeMattermostBotId)
+            .isNotEmpty
         ? mattermostBots.firstWhere((item) => item.id == activeMattermostBotId)
         : (mattermostBots.isNotEmpty ? mattermostBots.first : null);
 
@@ -347,9 +363,10 @@ class SettingsService {
     final mattermostBots = _normalizeMattermostBots(payload['mattermostBots']);
     final activeMattermostBotId =
         (payload['activeMattermostBotId'] as String? ?? '').trim();
-    final normalizedActiveMattermostBotId = mattermostBots.where(
-      (item) => item.id == activeMattermostBotId,
-    ).isNotEmpty
+    final normalizedActiveMattermostBotId =
+        mattermostBots
+            .where((item) => item.id == activeMattermostBotId)
+            .isNotEmpty
         ? activeMattermostBotId
         : (mattermostBots.isNotEmpty ? mattermostBots.first.id : '');
 
@@ -373,7 +390,8 @@ class SettingsService {
       'n8n.apiKey': (payload['n8nApiKey'] as String? ?? '').trim(),
       'n8n.webhookSecret': (payload['n8nWebhookSecret'] as String? ?? '')
           .trim(),
-      'n8n.inboundSecret': (payload['n8nInboundSecret'] as String? ?? '').trim(),
+      'n8n.inboundSecret': (payload['n8nInboundSecret'] as String? ?? '')
+          .trim(),
       'app.baseUrl': (payload['publicBaseUrl'] as String? ?? '').trim(),
       'smtp.host': (payload['smtpHost'] as String? ?? '').trim(),
       'smtp.port': (payload['smtpPort'] as String? ?? '').trim(),
@@ -449,7 +467,9 @@ class SettingsService {
     final legacyTeamId =
         stored['mattermost.teamId'] ?? _config.defaultMattermostTeamId ?? '';
     final legacyTeamName =
-        stored['mattermost.teamName'] ?? _config.defaultMattermostTeamName ?? '';
+        stored['mattermost.teamName'] ??
+        _config.defaultMattermostTeamName ??
+        '';
     final legacyConfigured =
         legacyBaseUrl.trim().isNotEmpty ||
         legacyToken.trim().isNotEmpty ||
@@ -481,10 +501,11 @@ class SettingsService {
       if (item is! Map) {
         continue;
       }
-      final id = (item['id']?.toString().trim().isNotEmpty == true
-              ? item['id']!.toString().trim()
-              : 'bot-${index + 1}')
-          .toLowerCase();
+      final id =
+          (item['id']?.toString().trim().isNotEmpty == true
+                  ? item['id']!.toString().trim()
+                  : 'bot-${index + 1}')
+              .toLowerCase();
       if (!seenIds.add(id)) {
         continue;
       }

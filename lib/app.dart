@@ -40,6 +40,12 @@ String resolveBootstrapPasswordHash(AppConfig config) {
   return config.resolveBootstrapPasswordHash();
 }
 
+String _localPasswordChangedKey(String username) =>
+    'auth.localPasswordChanged.${username.toLowerCase()}';
+
+String _bootstrapPasswordHashKey(String username) =>
+    'auth.bootstrapPasswordHash.${username.toLowerCase()}';
+
 Future<Application> buildApplication() async {
   final config = AppConfig.fromEnvironment();
   final database = DatabaseFactoryRegistry().open(config);
@@ -48,14 +54,35 @@ Future<Application> buildApplication() async {
     'bootstrap start driver=${config.databaseDriver} username=${config.bootstrapAdminUsername} forceSync=${config.forceBootstrapAdminPasswordSync} passwordProvided=${config.bootstrapAdminPassword != null} passwordHashProvided=${config.bootstrapAdminPasswordHash != null}',
   );
   await database.initialize();
+  final bootstrapMarkers = await database.getSettings();
+  final existingAdmin = await database.getUserByUsername(
+    config.bootstrapAdminUsername,
+  );
   final bootstrapPasswordHash = config.resolveBootstrapPasswordHash();
+  final adminPasswordChanged =
+      bootstrapMarkers[_localPasswordChangedKey(
+            config.bootstrapAdminUsername,
+          )] ==
+          'true' ||
+      (bootstrapMarkers[_bootstrapPasswordHashKey(
+                config.bootstrapAdminUsername,
+              )] ==
+              bootstrapPasswordHash &&
+          existingAdmin?['passwordHash'] != null &&
+          existingAdmin?['passwordHash'] != bootstrapPasswordHash);
+  final forceAdminPasswordSync =
+      config.forceBootstrapAdminPasswordSync && !adminPasswordChanged;
   await database.ensureBootstrapAdmin(
     username: config.bootstrapAdminUsername,
     displayName: config.bootstrapAdminDisplayName,
     email: config.bootstrapAdminEmail,
     passwordHash: bootstrapPasswordHash,
-    forcePasswordSync: config.forceBootstrapAdminPasswordSync,
+    forcePasswordSync: forceAdminPasswordSync,
   );
+  await database.upsertSettings({
+    _bootstrapPasswordHashKey(config.bootstrapAdminUsername):
+        bootstrapPasswordHash,
+  });
   final bootstrapUser = await database.getUserByUsername(
     config.bootstrapAdminUsername,
   );
@@ -67,19 +94,38 @@ Future<Application> buildApplication() async {
   if (bootstrapUserUsername != null &&
       bootstrapUserUsername.toLowerCase() !=
           config.bootstrapAdminUsername.toLowerCase()) {
+    final userPasswordChanged =
+        bootstrapMarkers[_localPasswordChangedKey(bootstrapUserUsername)] ==
+        'true';
     _authLog(
       config,
-      'bootstrap default user start username=$bootstrapUserUsername forceSync=${config.forceBootstrapUserPasswordSync} passwordProvided=${config.bootstrapUserPassword != null} passwordHashProvided=${config.bootstrapUserPasswordHash != null}',
+      'bootstrap default user start username=$bootstrapUserUsername forceSync=${config.forceBootstrapUserPasswordSync} passwordChangedByUser=$userPasswordChanged passwordProvided=${config.bootstrapUserPassword != null} passwordHashProvided=${config.bootstrapUserPasswordHash != null}',
     );
     final bootstrapUserPasswordHash = config.resolveBootstrapUserPasswordHash();
     if (bootstrapUserPasswordHash != null) {
+      final existingDefaultUser = await database.getUserByUsername(
+        bootstrapUserUsername,
+      );
+      final effectiveUserPasswordChanged =
+          userPasswordChanged ||
+          (bootstrapMarkers[_bootstrapPasswordHashKey(bootstrapUserUsername)] ==
+                  bootstrapUserPasswordHash &&
+              existingDefaultUser?['passwordHash'] != null &&
+              existingDefaultUser?['passwordHash'] !=
+                  bootstrapUserPasswordHash);
       await database.ensureBootstrapUser(
         username: bootstrapUserUsername,
         displayName: config.bootstrapUserDisplayName,
         email: config.bootstrapUserEmail,
         passwordHash: bootstrapUserPasswordHash,
-        forcePasswordSync: config.forceBootstrapUserPasswordSync,
+        forcePasswordSync:
+            config.forceBootstrapUserPasswordSync &&
+            !effectiveUserPasswordChanged,
       );
+      await database.upsertSettings({
+        _bootstrapPasswordHashKey(bootstrapUserUsername):
+            bootstrapUserPasswordHash,
+      });
       final defaultUser = await database.getUserByUsername(
         bootstrapUserUsername,
       );
