@@ -1153,8 +1153,7 @@ class PostgresDatabaseStore implements DatabaseStore {
     String? createdBy,
   }) async {
     final hasCreatedBy = createdBy != null && createdBy.isNotEmpty;
-    final campaigns = await _db.execute(
-      r'''
+    final campaignsQuery = '''
       SELECT
         id,
         created_at,
@@ -1169,7 +1168,9 @@ class PostgresDatabaseStore implements DatabaseStore {
       ${hasCreatedBy ? 'WHERE created_by = \$1' : ''}
       ORDER BY id DESC
       LIMIT \$${hasCreatedBy ? 2 : 1}
-      ''',
+    ''';
+    final campaigns = await _db.execute(
+      campaignsQuery,
       parameters: hasCreatedBy ? [createdBy, limit] : [limit],
     );
 
