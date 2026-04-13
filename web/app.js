@@ -3071,7 +3071,7 @@ function getComposerState() {
   if (!message && !hasAudience) {
     return {
       ready: false,
-      hint: 'Добавь текст и хотя бы одного получателя, группу или канал.',
+      hint: '',
     };
   }
   if (!message) {
