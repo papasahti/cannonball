@@ -523,6 +523,7 @@ async function onLogout() {
   state.selectedUsers = [];
   state.selectedGroups = [];
   state.selectedChannels = [];
+  state.selectedMattermostBotId = '';
   state.currentUser = null;
   state.appSettings = null;
   state.adminSettings = null;
@@ -561,18 +562,10 @@ async function loadConfig() {
 
   state.currentUser = response.user;
   state.appSettings = response.settings;
-  if (!state.selectedMattermostBotId) {
-    state.selectedMattermostBotId =
-      response.settings.activeMattermostBotId || '';
-  }
-  if (!state.selectedChannels.length) {
-    const channels = response.settings.defaultChannels || [];
-    for (let index = 0; index < channels.length; index += 1) {
-      if (!state.selectedChannels.includes(channels[index])) {
-        state.selectedChannels.push(channels[index]);
-      }
-    }
-  }
+  state.selectedMattermostBotId =
+    (response.user && response.user.preferredBotId) ||
+    response.settings.activeMattermostBotId ||
+    '';
 
   elements.appTitleBadge.textContent = response.settings.appTitle || 'cannonball';
   document.title = response.settings.appTitle || 'cannonball';
@@ -716,22 +709,35 @@ function syncComposerMattermostBots() {
   }
 
   const bots = getAvailableMattermostBots();
-  const shouldShow =
-    !!state.appSettings &&
-    state.appSettings.deliveryMode === 'mattermost' &&
-    bots.length > 1;
+  const isMattermostDelivery =
+    !!state.appSettings && state.appSettings.deliveryMode === 'mattermost';
 
-  elements.composerBotField.classList.toggle('hidden', !shouldShow);
-  if (!shouldShow) {
+  if (!bots.length) {
+    state.selectedMattermostBotId = '';
+    elements.composerBotField.classList.add('hidden');
     elements.composerBotSelect.innerHTML = '';
+    elements.composerBotSelect.disabled = true;
     return;
   }
 
-  const activeBotId =
+  const shouldShow = isMattermostDelivery;
+  elements.composerBotField.classList.toggle('hidden', !shouldShow);
+  if (!shouldShow) {
+    elements.composerBotSelect.innerHTML = '';
+    elements.composerBotSelect.disabled = true;
+    return;
+  }
+
+  const requestedBotId =
     state.selectedMattermostBotId ||
     (state.currentUser && state.currentUser.preferredBotId) ||
     (state.appSettings && state.appSettings.activeMattermostBotId) ||
-    bots[0].id;
+    '';
+  const activeBotId = bots.some(function (bot) {
+    return bot.id === requestedBotId;
+  })
+    ? requestedBotId
+    : bots[0].id;
   state.selectedMattermostBotId = activeBotId;
 
   elements.composerBotSelect.innerHTML = bots
@@ -748,6 +754,7 @@ function syncComposerMattermostBots() {
     })
     .join('');
 
+  elements.composerBotSelect.disabled = bots.length <= 1;
   syncCustomSelects(elements.composerBotField);
 }
 
@@ -2424,9 +2431,11 @@ function renderAdminUsers() {
         '</div>' +
         '<div class="admin-user-row-actions">' +
         '<div class="admin-user-row-buttons">' +
-        '<button class="ghost-button" type="button" data-delete-user="' +
-        escapeHtml(user.id) +
-        '">Удалить</button>' +
+        (user.role === 'admin'
+          ? ''
+          : '<button class="ghost-button" type="button" data-delete-user="' +
+            escapeHtml(user.id) +
+            '">Удалить</button>') +
         '<button class="ghost-button" type="button" data-save-user="' +
         escapeHtml(user.id) +
         '">Сохранить</button>' +
