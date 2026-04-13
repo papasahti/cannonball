@@ -1707,6 +1707,85 @@ body[data-theme='night'] .settings-nav-button {
   color: var(--text-soft);
 }
 
+.bot-grants-select {
+  position: relative;
+}
+
+.bot-grants-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 46px;
+  padding: 10px 14px;
+  border: 1px solid var(--panel-border);
+  border-radius: 14px;
+  background: var(--input-fill);
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.bot-grants-trigger::after {
+  content: '▾';
+  margin-left: 12px;
+  color: var(--text-soft);
+  font-size: 0.82rem;
+}
+
+.bot-grants-select.is-open .bot-grants-trigger,
+.bot-grants-trigger:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px var(--focus-ring);
+  outline: none;
+}
+
+.bot-grants-menu {
+  position: absolute;
+  z-index: 25;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  display: grid;
+  gap: 8px;
+  max-height: 240px;
+  padding: 10px;
+  overflow-y: auto;
+  border: 1px solid var(--panel-border-strong);
+  border-radius: 14px;
+  background: var(--panel);
+  box-shadow: 0 22px 44px rgba(15, 21, 34, 0.16);
+}
+
+.bot-grants-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.bot-grants-option:hover {
+  background: var(--panel-fill-strong);
+}
+
+.bot-grants-option span {
+  font-size: 0.95rem;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.bot-grants-empty {
+  padding: 8px 10px;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
 .admin-user-toggle {
   min-height: 100%;
   display: flex;

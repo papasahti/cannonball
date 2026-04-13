@@ -607,6 +607,109 @@ function getAvailableMattermostBots() {
   });
 }
 
+function getConfiguredMattermostBots() {
+  const settings = state.appSettings || state.publicSettings || {};
+  const bots = Array.isArray(settings.mattermostBots)
+    ? settings.mattermostBots
+    : [];
+  return bots.filter(function (item) {
+    return item && item.configured !== false;
+  });
+}
+
+function getSelectedUserBotGrantIds(card) {
+  if (!card) {
+    return [];
+  }
+  return Array.from(card.querySelectorAll('[data-bot-grant]:checked'))
+    .map(function (checkbox) {
+      return String(checkbox.getAttribute('data-bot-grant') || '').trim();
+    })
+    .filter(function (id) {
+      return id;
+    });
+}
+
+function refreshUserBotGrantField(card) {
+  if (!card) {
+    return;
+  }
+
+  const availableBots = getConfiguredMattermostBots();
+  const allowedBotIds = getSelectedUserBotGrantIds(card);
+  const allowedBots = availableBots.filter(function (bot) {
+    return allowedBotIds.includes(bot.id);
+  });
+  const trigger = card.querySelector('[data-bot-grants-trigger]');
+  const preferredSelect = card.querySelector('[data-field="preferredBotId"]');
+  if (!trigger || !preferredSelect) {
+    return;
+  }
+
+  trigger.textContent = allowedBots.length
+    ? (allowedBots.length === 1
+        ? allowedBots[0].name || allowedBots[0].teamName || allowedBots[0].id
+        : 'Выдано ботов: ' + String(allowedBots.length))
+    : 'Выбери ботов';
+
+  const currentPreferred = String(preferredSelect.value || '').trim();
+  preferredSelect.innerHTML =
+    '<option value="">Не выбран</option>' +
+    allowedBots
+      .map(function (bot) {
+        return (
+          '<option value="' +
+          escapeHtml(bot.id) +
+          '">' +
+          escapeHtml(bot.name || bot.teamName || bot.id) +
+          '</option>'
+        );
+      })
+      .join('');
+  preferredSelect.value = allowedBotIds.includes(currentPreferred)
+    ? currentPreferred
+    : '';
+  syncCustomSelects(card);
+}
+
+function toggleUserBotGrantMenu(shell) {
+  if (!shell) {
+    return;
+  }
+  const isOpen = shell.classList.contains('is-open');
+  closeUserBotGrantMenus(shell);
+  if (isOpen) {
+    return;
+  }
+  const trigger = shell.querySelector('[data-bot-grants-trigger]');
+  const menu = shell.querySelector('[data-bot-grants-menu]');
+  shell.classList.add('is-open');
+  if (trigger) {
+    trigger.setAttribute('aria-expanded', 'true');
+  }
+  if (menu) {
+    menu.classList.remove('hidden');
+  }
+}
+
+function closeUserBotGrantMenus(exceptShell) {
+  document
+    .querySelectorAll('[data-bot-grants-select].is-open')
+    .forEach(function (shell) {
+      if (shell !== exceptShell) {
+        shell.classList.remove('is-open');
+        const trigger = shell.querySelector('[data-bot-grants-trigger]');
+        const menu = shell.querySelector('[data-bot-grants-menu]');
+        if (trigger) {
+          trigger.setAttribute('aria-expanded', 'false');
+        }
+        if (menu) {
+          menu.classList.add('hidden');
+        }
+      }
+    });
+}
+
 function syncComposerMattermostBots() {
   if (!elements.composerBotField || !elements.composerBotSelect) {
     return;
@@ -978,9 +1081,7 @@ async function onSaveManagedUser(id) {
     role: card.querySelector('[data-field="role"]').value,
     isActive: card.querySelector('[data-field="isActive"]').checked,
     password: card.querySelector('[data-field="password"]').value,
-    allowedBotIds: splitCommaList(
-      card.querySelector('[data-field="allowedBotIds"]').value,
-    ),
+    allowedBotIds: getSelectedUserBotGrantIds(card),
     preferredBotId: card.querySelector('[data-field="preferredBotId"]').value,
   };
 
@@ -2282,10 +2383,17 @@ function renderAdminUsers() {
 
   const rows = state.adminUsers
     .map(function (user) {
-      const availableBots = getAvailableMattermostBots();
+      const availableBots = getConfiguredMattermostBots();
       const allowedBotIds = Array.isArray(user.allowedBotIds)
         ? user.allowedBotIds
         : [];
+      const allowedBotNames = availableBots
+        .filter(function (bot) {
+          return allowedBotIds.includes(bot.id);
+        })
+        .map(function (bot) {
+          return bot.name || bot.teamName || bot.id;
+        });
       return (
         '<article class="history-card admin-user-row-card" data-user-card="' +
         escapeHtml(user.id) +
@@ -2341,9 +2449,39 @@ function renderAdminUsers() {
         (user.role === 'admin' ? ' selected' : '') +
         '>Администратор</option>' +
         '</select></div></label>' +
-        '<label class="field"><span>Доступные боты</span><input data-field="allowedBotIds" type="text" value="' +
-        escapeHtml(allowedBotIds.join(', ')) +
-        '" placeholder="primary, ops-bot" /></label>' +
+        '<label class="field"><span>Гранты на ботов</span>' +
+        '<div class="bot-grants-select" data-bot-grants-select>' +
+        '<button class="bot-grants-trigger" type="button" data-bot-grants-trigger aria-expanded="false">' +
+        escapeHtml(
+          allowedBotNames.length
+            ? (allowedBotNames.length === 1
+                ? allowedBotNames[0]
+                : 'Выдано ботов: ' + String(allowedBotNames.length))
+            : 'Выбери ботов',
+        ) +
+        '</button>' +
+        '<div class="bot-grants-menu hidden" data-bot-grants-menu>' +
+        (availableBots.length
+          ? availableBots
+              .map(function (bot) {
+                return (
+                  '<label class="bot-grants-option">' +
+                  '<input type="checkbox" data-bot-grant="' +
+                  escapeHtml(bot.id) +
+                  '"' +
+                  (allowedBotIds.includes(bot.id) ? ' checked' : '') +
+                  ' />' +
+                  '<span>' +
+                  escapeHtml(bot.name || bot.teamName || bot.id) +
+                  '</span>' +
+                  '</label>'
+                );
+              })
+              .join('')
+          : '<div class="bot-grants-empty">Сначала добавь ботов Mattermost в настройках.</div>') +
+        '</div>' +
+        '</div>' +
+        '</label>' +
         '<label class="field"><span>Бот по умолчанию</span><div class="select-shell"><select data-field="preferredBotId">' +
         '<option value="">Не выбран</option>' +
         availableBots
@@ -2414,6 +2552,28 @@ function renderAdminUsers() {
       button.addEventListener('click', function () {
         onDeleteManagedUser(button.getAttribute('data-delete-user'));
       });
+    });
+
+  elements.adminUsersList
+    .querySelectorAll('[data-bot-grants-trigger]')
+    .forEach(function (button) {
+      button.addEventListener('click', function () {
+        toggleUserBotGrantMenu(button.closest('[data-bot-grants-select]'));
+      });
+    });
+
+  elements.adminUsersList
+    .querySelectorAll('[data-bot-grant]')
+    .forEach(function (checkbox) {
+      checkbox.addEventListener('change', function () {
+        refreshUserBotGrantField(checkbox.closest('[data-user-card]'));
+      });
+    });
+
+  elements.adminUsersList
+    .querySelectorAll('[data-user-card]')
+    .forEach(function (card) {
+      refreshUserBotGrantField(card);
     });
 }
 
@@ -3336,11 +3496,15 @@ function handleDocumentClick(event) {
   if (!event.target.closest('.custom-select')) {
     closeCustomSelects();
   }
+  if (!event.target.closest('[data-bot-grants-select]')) {
+    closeUserBotGrantMenus();
+  }
 }
 
 function handleDocumentKeydown(event) {
   if (event.key === 'Escape') {
     closeCustomSelects();
+    closeUserBotGrantMenus();
   }
 }
 
