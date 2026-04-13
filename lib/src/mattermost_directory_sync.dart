@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'database_store.dart';
+import 'mattermost_client.dart';
 import 'settings_service.dart';
 
 class MattermostDirectorySyncService {
@@ -73,6 +75,15 @@ class MattermostDirectorySyncService {
                   'type': channel.type,
                 })
             .toList(growable: false),
+      );
+    } on MattermostApiException catch (error) {
+      stderr.writeln(
+        '[cannonball][mattermost-sync] sync skipped: ${error.message}'
+        '${error.statusCode != null ? ' status=${error.statusCode}' : ''}',
+      );
+    } catch (error, stackTrace) {
+      stderr.writeln(
+        '[cannonball][mattermost-sync] sync failed: $error\n$stackTrace',
       );
     } finally {
       _syncInProgress = false;
