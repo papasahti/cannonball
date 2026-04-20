@@ -285,10 +285,17 @@ function bindEvents() {
   elements.audienceSearch.addEventListener('focus', function () {
     loadAudience();
   });
+  elements.audienceSearch.addEventListener('paste', function (event) {
+    handleAudienceBulkPaste(event);
+  });
   elements.audienceSearch.addEventListener('input', function () {
     updateComposerFieldStates();
   });
   elements.audienceSearch.addEventListener('keydown', function (event) {
+    if (event.key === 'Enter' && trySubmitBulkAudienceInput()) {
+      event.preventDefault();
+      return;
+    }
     handleSearchNavigation(event, elements.audienceResults, 'audience');
   });
   elements.messageInput.addEventListener('input', function () {
@@ -820,6 +827,173 @@ async function loadAudience() {
     },
     'audience',
   );
+}
+
+function splitAudienceBulkInput(value) {
+  return String(value || '')
+    .split(/[\s,;]+/)
+    .map(function (item) {
+      return item.trim();
+    })
+    .filter(function (item) {
+      return item.length >= 2;
+    });
+}
+
+function findAudienceExactUser(items, token) {
+  const normalizedToken = token.trim().toLowerCase();
+  return (
+    (items || []).find(function (item) {
+      if (!item || item.kind !== 'user') {
+        return false;
+      }
+      return (
+        String(item.username || '').trim().toLowerCase() === normalizedToken ||
+        String(item.email || '').trim().toLowerCase() === normalizedToken ||
+        String(item.displayName || '').trim().toLowerCase() === normalizedToken
+      );
+    }) || null
+  );
+}
+
+function addSelectedAudienceItem(item) {
+  if (!item) {
+    return false;
+  }
+  if (item.kind === 'group') {
+    const groupExists = state.selectedGroups.some(function (selected) {
+      return String(selected.id) === String(item.id);
+    });
+    if (groupExists) {
+      return false;
+    }
+    state.selectedGroups.push(item);
+    return true;
+  }
+
+  const userExists = state.selectedUsers.some(function (selected) {
+    return String(selected.id) === String(item.id);
+  });
+  if (userExists) {
+    return false;
+  }
+  state.selectedUsers.push(item);
+  return true;
+}
+
+async function addAudienceUsersBulk(rawValue) {
+  const tokens = splitAudienceBulkInput(rawValue);
+  if (tokens.length < 2) {
+    return false;
+  }
+
+  const uniqueTokens = Array.from(
+    new Set(
+      tokens.map(function (item) {
+        return item.toLowerCase();
+      }),
+    ),
+  );
+
+  setStatus(elements.sendStatus, 'Добавляю список получателей...', 'neutral');
+
+  const responses = await Promise.all(
+    uniqueTokens.map(function (token) {
+      return api('/api/audience?query=' + encodeURIComponent(token)).then(function (response) {
+        return {
+          token: token,
+          response: response,
+        };
+      });
+    }),
+  );
+
+  let addedCount = 0;
+  const notFound = [];
+  const failed = [];
+
+  responses.forEach(function (entry) {
+    if (!entry.response.ok) {
+      failed.push(entry.token);
+      return;
+    }
+    const match = findAudienceExactUser(entry.response.items || [], entry.token);
+    if (!match) {
+      notFound.push(entry.token);
+      return;
+    }
+    if (addSelectedAudienceItem(match)) {
+      addedCount += 1;
+    }
+  });
+
+  elements.audienceSearch.value = '';
+  renderSelectedAudience();
+  loadAudience();
+
+  if (failed.length) {
+    setStatus(
+      elements.sendStatus,
+      'Не удалось проверить часть получателей. Попробуй ещё раз.',
+      'negative',
+    );
+    return true;
+  }
+
+  if (!addedCount && notFound.length) {
+    setStatus(
+      elements.sendStatus,
+      'Не найдены пользователи: ' + notFound.join(', '),
+      'negative',
+    );
+    return true;
+  }
+
+  if (notFound.length) {
+    setStatus(
+      elements.sendStatus,
+      'Добавлено: ' +
+        String(addedCount) +
+        '. Не найдены: ' +
+        notFound.join(', '),
+      'neutral',
+    );
+    return true;
+  }
+
+  setStatus(
+    elements.sendStatus,
+    'Добавлено пользователей: ' + String(addedCount) + '.',
+    'positive',
+  );
+  return true;
+}
+
+function trySubmitBulkAudienceInput() {
+  const value = elements.audienceSearch.value.trim();
+  if (!value) {
+    return false;
+  }
+  const tokens = splitAudienceBulkInput(value);
+  const explicitSeparators = /[,\n\r;]+/.test(value);
+  const whitespaceTokenList = !explicitSeparators && tokens.length >= 3;
+  if ((!explicitSeparators && !whitespaceTokenList) || tokens.length < 2) {
+    return false;
+  }
+  addAudienceUsersBulk(value);
+  return true;
+}
+
+function handleAudienceBulkPaste(event) {
+  const text = event.clipboardData
+    ? event.clipboardData.getData('text')
+    : '';
+  const tokens = splitAudienceBulkInput(text);
+  if (tokens.length < 2) {
+    return;
+  }
+  event.preventDefault();
+  addAudienceUsersBulk(text);
 }
 
 async function loadChannels() {
