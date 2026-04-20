@@ -93,6 +93,7 @@ const state = {
   publicSettings: null,
   authMessage: '',
   audienceActiveIndex: -1,
+  audienceBulkResolveTimer: null,
   channelActiveIndex: -1,
   historySearch: '',
   historyStatusFilter: 'all',
@@ -290,6 +291,7 @@ function bindEvents() {
   });
   elements.audienceSearch.addEventListener('input', function () {
     updateComposerFieldStates();
+    scheduleBulkAudienceResolve();
   });
   elements.audienceSearch.addEventListener('keydown', function (event) {
     if (event.key === 'Enter' && trySubmitBulkAudienceInput()) {
@@ -844,7 +846,7 @@ function findAudienceExactUser(items, token) {
   const normalizedToken = token.trim().toLowerCase();
   return (
     (items || []).find(function (item) {
-      if (!item || item.kind !== 'user') {
+      if (!item) {
         return false;
       }
       return (
@@ -854,6 +856,22 @@ function findAudienceExactUser(items, token) {
       );
     }) || null
   );
+}
+
+function isLikelyAudienceIdentifier(token) {
+  return /^[a-zA-Z0-9._@-]+$/.test(String(token || '').trim());
+}
+
+function shouldResolveBulkAudienceInput(value) {
+  const source = String(value || '');
+  const tokens = splitAudienceBulkInput(source);
+  if (tokens.length < 2) {
+    return false;
+  }
+  if (/[,\n\r;]+/.test(source)) {
+    return true;
+  }
+  return tokens.length >= 2 && tokens.every(isLikelyAudienceIdentifier);
 }
 
 function addSelectedAudienceItem(item) {
@@ -899,7 +917,7 @@ async function addAudienceUsersBulk(rawValue) {
 
   const responses = await Promise.all(
     uniqueTokens.map(function (token) {
-      return api('/api/audience?query=' + encodeURIComponent(token)).then(function (response) {
+      return api('/api/users?query=' + encodeURIComponent(token)).then(function (response) {
         return {
           token: token,
           response: response,
@@ -971,13 +989,7 @@ async function addAudienceUsersBulk(rawValue) {
 
 function trySubmitBulkAudienceInput() {
   const value = elements.audienceSearch.value.trim();
-  if (!value) {
-    return false;
-  }
-  const tokens = splitAudienceBulkInput(value);
-  const explicitSeparators = /[,\n\r;]+/.test(value);
-  const whitespaceTokenList = !explicitSeparators && tokens.length >= 3;
-  if ((!explicitSeparators && !whitespaceTokenList) || tokens.length < 2) {
+  if (!shouldResolveBulkAudienceInput(value)) {
     return false;
   }
   addAudienceUsersBulk(value);
@@ -988,12 +1000,23 @@ function handleAudienceBulkPaste(event) {
   const text = event.clipboardData
     ? event.clipboardData.getData('text')
     : '';
-  const tokens = splitAudienceBulkInput(text);
-  if (tokens.length < 2) {
+  if (!shouldResolveBulkAudienceInput(text)) {
     return;
   }
   event.preventDefault();
   addAudienceUsersBulk(text);
+}
+
+function scheduleBulkAudienceResolve() {
+  if (!shouldResolveBulkAudienceInput(elements.audienceSearch.value)) {
+    return;
+  }
+  window.clearTimeout(state.audienceBulkResolveTimer);
+  state.audienceBulkResolveTimer = window.setTimeout(function () {
+    if (shouldResolveBulkAudienceInput(elements.audienceSearch.value)) {
+      addAudienceUsersBulk(elements.audienceSearch.value);
+    }
+  }, 180);
 }
 
 async function loadChannels() {
